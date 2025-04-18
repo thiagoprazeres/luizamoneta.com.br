@@ -12,11 +12,15 @@ import gsap from 'gsap';
 import ScrollTrigger from 'gsap/ScrollTrigger';
 gsap.registerPlugin(ScrollTrigger);
 
+  /**
+   * O componente raiz da aplicação.
+   *
+   * Responsável por carregar a animação de apresentação do logotipo e do texto.
+   */
 @Component({
   selector: 'app-root',
   imports: [],
   templateUrl: './app.component.html',
-  styleUrl: './app.component.css',
 })
 export class AppComponent implements AfterViewInit {
   private elementRef = inject(ElementRef);
@@ -51,7 +55,7 @@ export class AppComponent implements AfterViewInit {
       const tagline = selectAll('#tagline path');
 
       // Animação principal
-      tl.set(isotype, { x: 80 })
+      tl.set(isotype, { x: 64 })
         .set(logotype, { x: -36 })
         .from(combinationMark, {
           scale: 0,
