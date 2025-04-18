@@ -1,11 +1,97 @@
-import { Component } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  inject,
+  Inject,
+  NgZone,
+  PLATFORM_ID,
+} from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
+import gsap from 'gsap';
+import ScrollTrigger from 'gsap/ScrollTrigger';
+gsap.registerPlugin(ScrollTrigger);
 
 @Component({
   selector: 'app-root',
   imports: [],
   templateUrl: './app.component.html',
-  styleUrl: './app.component.css'
+  styleUrl: './app.component.css',
 })
-export class AppComponent {
-  title = 'luizamoneta.com.br';
+export class AppComponent implements AfterViewInit {
+  private elementRef = inject(ElementRef);
+  constructor(
+    @Inject(PLATFORM_ID) private platformId: Object,
+    private ngZone: NgZone
+  ) {}
+  ngAfterViewInit() {
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
+    this.ngZone.runOutsideAngular(() => {
+      const select = (selector: string) =>
+        this.elementRef.nativeElement.querySelector(selector);
+
+      const selectAll = (selector: string): NodeListOf<Element> =>
+        this.elementRef.nativeElement.querySelectorAll(selector);
+
+      const tl = gsap.timeline({
+        defaults: {
+          duration: 1,
+          ease: 'power3.out',
+        },
+      });
+
+      // Elementos principais
+      const isotype = select('#isotype');
+      const combinationMark = select('#combination-mark');
+      const isotypePaths = selectAll('#isotype path');
+      const logotype = select('#logotype');
+      const wordmark = selectAll('#wordmark path');
+      const tagline = selectAll('#tagline path');
+
+      // Animação principal
+      tl.set(isotype, { x: 80 })
+        .set(logotype, { x: -36 })
+        .from(combinationMark, {
+          scale: 0,
+          opacity: 0,
+          duration: 1,
+          ease: 'elastic.out(1, 0.5)',
+        })
+        .from(
+          isotypePaths,
+          {
+            stagger: 0.1,
+            scale: 0,
+            opacity: 0,
+            transformOrigin: 'center',
+            ease: 'bounce.out',
+          },
+          '-=0.8'
+        )
+        .to(isotype, { x: 0 })
+        .to(logotype, { x: 0 }, '-=1')
+        // Animação do texto
+        .from(
+          wordmark,
+          {
+            opacity: 0,
+            scale: 0.1,
+          },
+          '-=1'
+        )
+        .from(
+          tagline,
+          {
+            stagger: 0.07,
+            scale: 0,
+            opacity: 0,
+            transformOrigin: 'center',
+            ease: 'bounce.out',
+          },
+          '-=1.2'
+        );
+    });
+  }
 }
