@@ -36,3 +36,13 @@
   --depth: 0;
   --noise: 1;
 }
+
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #f68c1b;
+  color: white;
+}
