@@ -7,12 +7,14 @@
       "installMode": "prefetch",
       "resources": {
         "files": [
+          "/apple-touch-icon.png",
           "/favicon.ico",
-          "/index.csr.html",
           "/index.html",
           "/manifest.webmanifest",
           "/*.css",
-          "/*.js"
+          "/*.js",
+          "/assets/*",
+          "/icons/*"
         ]
       }
     },
