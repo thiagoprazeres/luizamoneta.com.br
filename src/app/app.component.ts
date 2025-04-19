@@ -12,11 +12,11 @@ import gsap from 'gsap';
 import ScrollTrigger from 'gsap/ScrollTrigger';
 gsap.registerPlugin(ScrollTrigger);
 
-  /**
-   * O componente raiz da aplicação.
-   *
-   * Responsável por carregar a animação de apresentação do logotipo e do texto.
-   */
+/**
+ * O componente raiz da aplicação.
+ *
+ * Responsável por carregar a animação de apresentação do logotipo e do texto.
+ */
 @Component({
   selector: 'app-root',
   imports: [],
@@ -53,10 +53,17 @@ export class AppComponent implements AfterViewInit {
       const logotype = select('#logotype');
       const wordmark = selectAll('#wordmark path');
       const tagline = selectAll('#tagline path');
+      const cabecalho = selectAll('#cabecalho *');
+      const cabecalho_h1 = select('#cabecalho > h1');
+      const cabecalho_p = select('#cabecalho > p');
+      const cabecalho_a = select('#cabecalho > a');
+      const diferencial = selectAll('#diferencial > div');
 
       // Animação principal
       tl.set(isotype, { x: 64 })
         .set(logotype, { x: -36 })
+        .set(cabecalho, { opacity: 0, y: 4 })
+        .set(diferencial, { opacity: 0, y: 4 })
         .from(combinationMark, {
           scale: 0,
           opacity: 0,
@@ -95,7 +102,22 @@ export class AppComponent implements AfterViewInit {
             ease: 'bounce.out',
           },
           '-=1.2'
-        );
+        )
+        .to(
+          cabecalho,
+          {
+            opacity: 1,
+            y: 0,
+            duration: 1,
+            stagger: 0.1,
+          }, '-=1.2'
+        )
+        .to(diferencial, {
+          opacity: 1,
+          y: 0,
+          duration: 1,
+          stagger: 0.1,
+        }, '-=0.8');
     });
   }
 }
