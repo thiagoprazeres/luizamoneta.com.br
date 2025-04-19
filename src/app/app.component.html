@@ -1083,7 +1083,7 @@
     class="hero-content flex-col lg:flex-row pt-10 sm:mt-8 md:pt-5 lg:pt-8 xl:pt-10"
   >
     <div class="px-4">
-      <h3 class="text-4xl font-bold mb-2">Por que escolher a Dra. Luiza?</h3>
+      <h3 class="text-4xl font-bold mb-2">Escolha a Dra. Luiza?</h3>
       <ul class="mt-5 text-xl">
         <li class="font-normal mb-2">
           Transforma <strong>sessões em momentos leves</strong> e cheios de
@@ -1248,7 +1248,116 @@
     />
   </div>
 </div>
-<div id="agendamento"></div>
+
+<div
+  id="agendamento"
+  class="flex min-h-screen md:items-center pt-10 md:p-0 bg-secondary text-secondary-content bg-[url('/assets/agendamento.webp')] bg-size-[100%_auto] md:bg-size-[90%_auto] lg:bg-size-[62%_auto] bg-bottom md:bg-right-bottom bg-no-repeat"
+>
+  <div
+    class="text-center md:text-left lg:container pl-0 md:pl-10 w-full lg:w-1/2 pb-56 sm:pb-112 md:pb-128 lg:pb-0"
+  >
+    <div class="px-4">
+      <h3 class="text-4xl font-extrabold">Agendamento</h3>
+      <p class="mt-2">
+        Preencha o <strong>pré-atendimento online</strong>, é rapidinho! Agende
+        sua <strong>consulta domiciliar</strong> entre 7h e 20h, no dia e
+        horário que preferir.
+        <strong>Receba tratamento personalizado</strong> com técnicas que vão da
+        ventosaterapia à crochetagem mioaponeurótica — tudo para restaurar seu
+        equilíbrio físico e emocional!
+      </p>
+      <form [formGroup]="consultaForm" (ngSubmit)="enviarWhatsApp()">
+        <fieldset
+          class="fieldset bg-white/25 border-primary rounded-box w-xs border p-4"
+        >
+          <legend
+            class="fieldset-legend text-secondary-content font-bold text-lg"
+          >
+            Me conta sobre você
+          </legend>
+
+          <!-- Nome -->
+          <label class="floating-label mt-1 sm:mt-2">
+            <input
+              type="text"
+              formControlName="nome"
+              placeholder="Qual seu nome?"
+              class="input input-primary"
+            />
+            <span>Nome</span>
+          </label>
+          @if(consultaForm.get('nome')?.errors?.['required'] &&
+          consultaForm.get('nome')?.touched){
+          <div class="text-error text-sm">Campo obrigatório</div>
+          }
+
+          <!-- E-mail -->
+          <label class="floating-label mt-1 sm:mt-2">
+            <input
+              type="email"
+              formControlName="email"
+              placeholder="Qual seu e-mail?"
+              class="input input-primary"
+            />
+            <span>E-mail</span>
+          </label>
+
+          <!-- Idade -->
+          <label class="floating-label mt-1 sm:mt-2">
+            <input
+              type="number"
+              formControlName="idade"
+              placeholder="Qual sua idade?"
+              class="input input-primary"
+            />
+            <span>Idade</span>
+          </label>
+          @if(consultaForm.get('idade')?.errors?.['required'] &&
+          consultaForm.get('idade')?.touched){
+          <div class="text-error text-sm">Campo obrigatório</div>
+          }
+
+          <!-- Região -->
+          <label class="floating-label mt-1 sm:mt-2">
+            <input
+              type="text"
+              formControlName="regiao"
+              placeholder="Qual região de Recife você é?"
+              class="input input-primary"
+            />
+            <span>Região de Recife</span>
+          </label>
+          @if(consultaForm.get('regiao')?.errors?.['required'] &&
+          consultaForm.get('regiao')?.touched){
+          <div class="text-error text-sm">Campo obrigatório</div>
+          }
+
+          <!-- Sintomas -->
+          <label class="floating-label mt-1 sm:mt-2">
+            <textarea
+              formControlName="sintomas"
+              placeholder="E o que você tá sentindo?"
+              class="textarea textarea-primary"
+            ></textarea>
+            <span>Sintomas</span>
+          </label>
+          @if(consultaForm.get('sintomas')?.errors?.['required'] &&
+          consultaForm.get('sintomas')?.touched){
+          <div class="text-error text-sm">Campo obrigatório</div>
+          }
+
+          <button
+            type="submit"
+            class="btn btn-primary btn-lg mt-1 sm:mt-2 md:mt-3"
+            [disabled]="!consultaForm.valid"
+          >
+            Começar meu atendimento
+          </button>
+        </fieldset>
+      </form>
+    </div>
+  </div>
+</div>
 <footer
   class="footer footer-horizontal footer-center bg-primary text-secondary p-10"
 >

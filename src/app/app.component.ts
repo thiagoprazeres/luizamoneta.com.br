@@ -11,6 +11,12 @@ import { isPlatformBrowser } from '@angular/common';
 import gsap from 'gsap';
 import ScrollTrigger from 'gsap/ScrollTrigger';
 gsap.registerPlugin(ScrollTrigger);
+import {
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 
 /**
  * O componente raiz da aplicação.
@@ -19,15 +25,41 @@ gsap.registerPlugin(ScrollTrigger);
  */
 @Component({
   selector: 'app-root',
-  imports: [],
+  imports: [ReactiveFormsModule],
   templateUrl: './app.component.html',
 })
 export class AppComponent implements AfterViewInit {
   private elementRef = inject(ElementRef);
+  readonly PHONE_NUMBER = '+5581981310778';
+  consultaForm: FormGroup = new FormGroup({
+    nome: new FormControl('', Validators.required),
+    email: new FormControl('', [Validators.required, Validators.email]),
+    idade: new FormControl('', Validators.required),
+    regiao: new FormControl('', Validators.required),
+    sintomas: new FormControl('', Validators.required),
+  });
   constructor(
     @Inject(PLATFORM_ID) private platformId: Object,
     private ngZone: NgZone
   ) {}
+
+  enviarWhatsApp() {
+    if (this.consultaForm.valid) {
+      const formData = this.consultaForm.value;
+      const mensagem = `Olá, gostaria de agendar uma consulta.\n\n*Nome:* ${
+        formData.nome
+      }\n*Idade:* ${formData.idade}\n*Região:* ${
+        formData.regiao
+      }\n*Sintomas:* ${formData.sintomas}\n*E-mail:* ${
+        formData.email || 'Não informado'
+      }`;
+
+      const urlWhatsApp = `https://wa.me/${
+        this.PHONE_NUMBER
+      }?text=${encodeURIComponent(mensagem)}`;
+      window.open(urlWhatsApp, '_blank');
+    }
+  }
   ngAfterViewInit() {
     if (!isPlatformBrowser(this.platformId)) {
       return;
@@ -110,14 +142,19 @@ export class AppComponent implements AfterViewInit {
             y: 0,
             duration: 1,
             stagger: 0.1,
-          }, '-=1.2'
+          },
+          '-=1.2'
         )
-        .to(diferencial, {
-          opacity: 1,
-          y: 0,
-          duration: 1,
-          stagger: 0.1,
-        }, '-=0.8');
+        .to(
+          diferencial,
+          {
+            opacity: 1,
+            y: 0,
+            duration: 1,
+            stagger: 0.1,
+          },
+          '-=0.8'
+        );
     });
   }
 }
