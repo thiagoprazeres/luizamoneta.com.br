@@ -1259,13 +1259,58 @@
     <div class="px-4">
       <h3 class="text-4xl font-extrabold">Agendamento</h3>
       <p class="mt-2">
-        {{ saudacao + '! ' }}<br>Preencha o <strong>pré-atendimento online</strong>, é rapidinho! Agende
-        sua <strong>consulta domiciliar</strong> entre 7h e 20h, no dia e
-        horário que preferir.
-        <strong>Receba tratamento personalizado</strong> com técnicas que vão da
-        ventosaterapia à crochetagem mioaponeurótica — tudo para restaurar seu
-        equilíbrio físico e emocional!
+        {{ saudacao + "! " }}<br />Preencha o
+        <strong>pré-atendimento online</strong>, é rapidinho! Agende sua
+        <strong>consulta domiciliar</strong> entre 7h e 20h, no dia e horário
+        que preferir. <strong>Receba tratamento personalizado</strong> com
+        técnicas que vão da ventosaterapia à crochetagem mioaponeurótica — tudo
+        para restaurar seu equilíbrio físico e emocional! {{enviado}}
       </p>
+      @if(enviado) {
+
+      <fieldset
+        class="fieldset bg-white/25 border-primary rounded-box w-full sm:w-xs md:w-sm mx-auto lg:mx-0 border p-4"
+      >
+        <legend
+          class="fieldset-legend text-secondary-content font-bold text-lg"
+        >
+          {{ saudacao }}
+        </legend>
+
+        <div class="space-y-4">
+          <h2 class="text-xl font-bold text-primary">
+            Obrigado, {{ dadosUsuario.nome }}!
+          </h2>
+
+          <div class="rounded-box p-4 space-y-2 text-base">
+            <p class="flex items-center gap-2">
+              <span class="font-semibold">Data de Nascimento:</span>
+              {{ formatarData(dadosUsuario.nascimento) }}
+            </p>
+            <p class="flex items-center gap-2">
+              <span class="font-semibold">E-mail:</span>
+              {{ dadosUsuario.email || "Não informado" }}
+            </p>
+            <p class="flex items-center gap-2">
+              <span class="font-semibold">Região:</span>
+              {{ dadosUsuario.regiao }}
+            </p>
+            <p class="flex items-center gap-2">
+              <span class="font-semibold">Sintomas:</span>
+              {{ dadosUsuario.sintomas }}
+            </p>
+          </div>
+
+            <button
+              type="button"
+              class="btn btn-warning btn-xs mt-1 sm:mt-2 md:mt-3"
+              (click)="corrigirDados()"
+            >
+              Corrigir dados
+            </button>
+        </div>
+      </fieldset>
+      } @else {
       <form
         [formGroup]="consultaForm"
         (ngSubmit)="enviarWhatsApp()"
@@ -1275,7 +1320,7 @@
           class="fieldset bg-white/25 border-primary rounded-box w-full sm:w-xs md:w-sm mx-auto lg:mx-0 border p-4"
         >
           <legend
-            class="fieldset-legend text-secondary-content font-bold text-lg"
+            class="fieldset-legend text-secondary-content font-bold text-lg w-auto!"
           >
             Sobre você
           </legend>
@@ -1331,7 +1376,7 @@
               formControlName="regiao"
               placeholder="Qual região de Recife você é?"
               class="input input-primary bg-white/66 w-full"
-              autocomplete="address-level2"
+              autocomplete="address-level1"
             />
             <span class="bg-[#FEECD2]!">Região de Recife</span>
           </label>
@@ -1395,6 +1440,7 @@
           </button>
         </fieldset>
       </form>
+      }
     </div>
   </div>
 </div>

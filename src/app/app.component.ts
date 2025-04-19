@@ -39,6 +39,8 @@ export class AppComponent implements AfterViewInit {
     sintomas: new FormControl('', Validators.required),
   });
   saudacao: string = '';
+  dadosUsuario: any = {};
+  enviado: boolean = false;
 
   constructor(
     @Inject(PLATFORM_ID) private platformId: Object,
@@ -59,7 +61,7 @@ export class AppComponent implements AfterViewInit {
     }
   }
 
-  private formatarData(data: string): string {
+  formatarData(data: string): string {
     if (!data) return '';
     const [ano, mes, dia] = data.split('-');
     return `${dia}/${mes}/${ano}`;
@@ -67,14 +69,18 @@ export class AppComponent implements AfterViewInit {
 
   enviarWhatsApp() {
     if (this.consultaForm.valid) {
-      const formData = this.consultaForm.value;
-      const dataNasc = this.formatarData(formData.nascimento);
-      const mensagem = `${this.saudacao}\n\nOlá, gostaria de agendar uma consulta.\n\n*Nome:* ${
-        formData.nome
+      this.enviado = true;
+      this.dadosUsuario = this.consultaForm.value;
+      console.log(this.dadosUsuario);
+      const dataNasc = this.formatarData(this.dadosUsuario.nascimento);
+      const mensagem = `${
+        this.saudacao
+      }\n\nOlá, gostaria de agendar uma consulta.\n\n*Nome:* ${
+        this.dadosUsuario.nome
       }\n*Data de nascimento:* ${dataNasc}\n*Região:* ${
-        formData.regiao
-      }\n*Sintomas:* ${formData.sintomas}\n*E-mail:* ${
-        formData.email || 'Não informado'
+        this.dadosUsuario.regiao
+      }\n*Sintomas:* ${this.dadosUsuario.sintomas}\n*E-mail:* ${
+        this.dadosUsuario.email || 'Não informado'
       }`;
 
       const urlWhatsApp = `https://wa.me/${
@@ -82,6 +88,10 @@ export class AppComponent implements AfterViewInit {
       }?text=${encodeURIComponent(mensagem)}`;
       window.open(urlWhatsApp, '_blank');
     }
+  }
+
+  corrigirDados() {
+    this.enviado = false;
   }
 
   ngAfterViewInit() {
@@ -110,9 +120,9 @@ export class AppComponent implements AfterViewInit {
       const wordmark = selectAll('#wordmark path');
       const tagline = selectAll('#tagline path');
       const cabecalho = selectAll('#cabecalho *');
-      const cabecalho_h1 = select('#cabecalho > h1');
-      const cabecalho_p = select('#cabecalho > p');
-      const cabecalho_a = select('#cabecalho > a');
+      // const cabecalho_h1 = select('#cabecalho > h1');
+      // const cabecalho_p = select('#cabecalho > p');
+      // const cabecalho_a = select('#cabecalho > a');
       const diferencial = selectAll('#diferencial > div');
 
       // Animação principal
