@@ -77,11 +77,11 @@ export class AppComponent implements AfterViewInit {
         this.saudacao
       }\n\nOlá, gostaria de agendar uma consulta.\n\n*Nome:* ${
         this.dadosUsuario.nome
+      }\n*E-mail:* ${
+        this.dadosUsuario.email || 'Não informado'
       }\n*Data de nascimento:* ${dataNasc}\n*Região:* ${
         this.dadosUsuario.regiao
-      }\n*Sintomas:* ${this.dadosUsuario.sintomas}\n*E-mail:* ${
-        this.dadosUsuario.email || 'Não informado'
-      }`;
+      }\n*Sintomas:* ${this.dadosUsuario.sintomas}`;
 
       const urlWhatsApp = `https://wa.me/${
         this.PHONE_NUMBER
