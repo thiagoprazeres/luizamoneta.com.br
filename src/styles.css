@@ -2,6 +2,7 @@
 @plugin "daisyui" {
   themes: false;
 }
+
 @plugin "daisyui/theme" {
   name: "luizamoneta";
   default: true;
@@ -12,9 +13,9 @@
   --color-base-300: oklch(95% 0 0);
   --color-base-content: oklch(21% 0.006 285.885);
   --color-primary: #f68c1b;
-  --color-primary-content: #ffffff;
+  --color-primary-content: #fde6c3;
   --color-secondary: #fde6c3;
-  --color-secondary-content: #1a1917;
+  --color-secondary-content: #f68c1b;
   --color-accent: #37cdbe;
   --color-accent-content: #ffffff;
   --color-neutral: #3d4451;
@@ -36,7 +37,6 @@
   --depth: 0;
   --noise: 1;
 }
-
 
 html {
   scroll-behavior: smooth;
