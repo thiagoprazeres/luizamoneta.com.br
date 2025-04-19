@@ -34,21 +34,44 @@ export class AppComponent implements AfterViewInit {
   consultaForm: FormGroup = new FormGroup({
     nome: new FormControl('', Validators.required),
     email: new FormControl('', [Validators.required, Validators.email]),
-    idade: new FormControl('', Validators.required),
+    nascimento: new FormControl('', Validators.required),
     regiao: new FormControl('', Validators.required),
     sintomas: new FormControl('', Validators.required),
   });
+  saudacao: string = '';
+
   constructor(
     @Inject(PLATFORM_ID) private platformId: Object,
     private ngZone: NgZone
-  ) {}
+  ) {
+    this.definirSaudacao();
+  }
+
+  private definirSaudacao() {
+    const hora = new Date().getHours();
+
+    if (hora >= 5 && hora < 12) {
+      this.saudacao = 'Bom dia';
+    } else if (hora >= 12 && hora < 18) {
+      this.saudacao = 'Boa tarde';
+    } else {
+      this.saudacao = 'Boa noite';
+    }
+  }
+
+  private formatarData(data: string): string {
+    if (!data) return '';
+    const [ano, mes, dia] = data.split('-');
+    return `${dia}/${mes}/${ano}`;
+  }
 
   enviarWhatsApp() {
     if (this.consultaForm.valid) {
       const formData = this.consultaForm.value;
-      const mensagem = `Olá, gostaria de agendar uma consulta.\n\n*Nome:* ${
+      const dataNasc = this.formatarData(formData.nascimento);
+      const mensagem = `${this.saudacao}\n\nOlá, gostaria de agendar uma consulta.\n\n*Nome:* ${
         formData.nome
-      }\n*Idade:* ${formData.idade}\n*Região:* ${
+      }\n*Data de nascimento:* ${dataNasc}\n*Região:* ${
         formData.regiao
       }\n*Sintomas:* ${formData.sintomas}\n*E-mail:* ${
         formData.email || 'Não informado'
@@ -60,6 +83,7 @@ export class AppComponent implements AfterViewInit {
       window.open(urlWhatsApp, '_blank');
     }
   }
+
   ngAfterViewInit() {
     if (!isPlatformBrowser(this.platformId)) {
       return;

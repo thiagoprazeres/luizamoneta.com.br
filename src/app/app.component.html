@@ -1259,7 +1259,7 @@
     <div class="px-4">
       <h3 class="text-4xl font-extrabold">Agendamento</h3>
       <p class="mt-2">
-        Preencha o <strong>pré-atendimento online</strong>, é rapidinho! Agende
+        {{ saudacao + '! ' }}<br>Preencha o <strong>pré-atendimento online</strong>, é rapidinho! Agende
         sua <strong>consulta domiciliar</strong> entre 7h e 20h, no dia e
         horário que preferir.
         <strong>Receba tratamento personalizado</strong> com técnicas que vão da
@@ -1277,7 +1277,7 @@
           <legend
             class="fieldset-legend text-secondary-content font-bold text-lg"
           >
-            Me conta sobre você
+            Sobre você
           </legend>
 
           <!-- Nome -->
@@ -1289,7 +1289,7 @@
               class="input input-primary bg-white/66 w-full"
               autocomplete="name"
             />
-            <span>Nome</span>
+            <span class="bg-[#FEECD2]!">Nome</span>
           </label>
           @if(consultaForm.get('nome')?.errors?.['required'] &&
           consultaForm.get('nome')?.touched){
@@ -1305,22 +1305,22 @@
               class="input input-primary bg-white/66 w-full"
               autocomplete="email"
             />
-            <span>E-mail</span>
+            <span class="bg-[#FEECD2]!">E-mail</span>
           </label>
 
-          <!-- Idade -->
+          <!-- Data de nascimento -->
           <label class="floating-label mt-1 sm:mt-2">
             <input
-              type="number"
-              formControlName="idade"
-              placeholder="Qual sua idade?"
+              type="date"
+              formControlName="nascimento"
+              placeholder="Qual sua data de nascimento?"
               class="input input-primary bg-white/66 w-full"
               autocomplete="bday-year"
             />
-            <span>Idade</span>
+            <span class="bg-[#FEECD2]!">Data de nascimento</span>
           </label>
-          @if(consultaForm.get('idade')?.errors?.['required'] &&
-          consultaForm.get('idade')?.touched){
+          @if(consultaForm.get('nascimento')?.errors?.['required'] &&
+          consultaForm.get('nascimento')?.touched){
           <div class="text-error text-sm">Campo obrigatório</div>
           }
 
@@ -1333,7 +1333,7 @@
               class="input input-primary bg-white/66 w-full"
               autocomplete="address-level2"
             />
-            <span>Região de Recife</span>
+            <span class="bg-[#FEECD2]!">Região de Recife</span>
           </label>
           @if(consultaForm.get('regiao')?.errors?.['required'] &&
           consultaForm.get('regiao')?.touched){
@@ -1348,7 +1348,7 @@
               class="textarea textarea-primary bg-white/66 w-full"
               autocomplete="off"
             ></textarea>
-            <span>Sintomas</span>
+            <span class="bg-[#FEECD2]!">Sintomas</span>
           </label>
           @if(consultaForm.get('sintomas')?.errors?.['required'] &&
           consultaForm.get('sintomas')?.touched){
@@ -1361,7 +1361,7 @@
             [disabled]="!consultaForm.valid"
           >
             <svg
-              fill="#ffffff"
+              fill="#fde6c3"
               height="24px"
               width="24px"
               version="1.1"
