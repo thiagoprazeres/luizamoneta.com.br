@@ -126,10 +126,10 @@ export class AppComponent implements AfterViewInit {
       const diferencial = selectAll('#diferencial > div');
 
       // Animação principal
-      tl.to(isotype, { x: 64, duration: 0.06 })
-        .to(logotype, { x: -36, duration: 0.06 })
-        .to(cabecalho, { opacity: 0, y: 4, duration: 0.06 })
-        .to(diferencial, { opacity: 0, y: 4, duration: 0.06 })
+      tl.to(isotype, { x: 64, duration: 0.08 })
+        .to(logotype, { x: -36, duration: 0.08 })
+        .to(cabecalho, { opacity: 0, y: 4, duration: 0.08 })
+        .to(diferencial, { opacity: 0, y: 4, duration: 0.08 })
         .from(combinationMark, {
           scale: 0,
           opacity: 0,
