@@ -1279,28 +1279,10 @@
             Obrigado, {{ dadosUsuario.nome }}!
           </h2>
 
-          <div class="rounded-box p-4 space-y-2 text-base">
-            <p class="flex items-center gap-2">
-              <span class="font-semibold">E-mail:</span>
-              {{ dadosUsuario.email || "Não informado" }}
-            </p>
-            <p class="flex items-center gap-2">
-              <span class="font-semibold">Data de Nascimento:</span>
-              {{ formatarData(dadosUsuario.nascimento) }}
-            </p>
-            <p class="flex items-center gap-2">
-              <span class="font-semibold">Região:</span>
-              {{ dadosUsuario.regiao }}
-            </p>
-            <p class="flex items-center gap-2">
-              <span class="font-semibold">Sintomas:</span>
-              {{ dadosUsuario.sintomas }}
-            </p>
-          </div>
 
           <button
             type="button"
-            class="btn btn-warning btn-xs mt-1 sm:mt-2 md:mt-3"
+            class="btn btn-secondary btn-xs mt-1 sm:mt-2 md:mt-3"
             (click)="corrigirDados()"
           >
             <svg
@@ -1320,6 +1302,30 @@
 
             Corrigir dados
           </button>
+          <div class="rounded-box p-4 space-y-2 text-base">
+            <p class="flex items-center gap-2">
+              <span class="font-semibold">E-mail:</span>
+              {{ dadosUsuario.email || "Não informado" }}
+            </p>
+            <p class="flex items-center gap-2">
+              <span class="font-semibold">Data de Nascimento:</span>
+              {{ formatarData(dadosUsuario.nascimento) }}
+            </p>
+            <p class="flex items-center gap-2">
+              <span class="font-semibold">Região:</span>
+              {{ dadosUsuario.regiao }}
+            </p>
+            <p class="flex items-center gap-2">
+              <span class="font-semibold">Sintomas:</span>
+              {{ dadosUsuario.sintomas }}
+            </p>
+          </div>
+          <a
+            href="#dicas-habitos"
+            class="btn btn-primary mt-1 sm:mt-2 md:mt-3"
+          >
+            Conheça algumas dicas
+          </a>
         </div>
       </fieldset>
       } @else {
@@ -1457,21 +1463,29 @@
   </div>
 </section>
 
-<section id="dicas-habitos" class="container mx-auto px-4 py-16">
-  <div class="max-w-3xl mx-auto">
-    <h2 class="text-3xl sm:text-4xl font-extrabold mb-2 text-center">Dicas para Evitar Hábitos Ruins</h2>
-    <h4 class="text-lg sm:text-xl font-semibold text-center">A Dra. Luiza alerta contra práticas que podem agravar sua saúde:</h4>
-    <h3 class="text-2xl font-bold text-primary">Hábito Ruim: Por que Evitar?</h3>
-    <dl class="divide-y divide-primary/20 text-center">
-      <div class="py-4">
+<section id="dicas-habitos" class="container text-primary-content mx-auto px-4 py-16">
+  <div>
+    <h2 class="text-3xl sm:text-4xl font-extrabold mb-1 text-center">Dicas para Evitar Hábitos Ruins</h2>
+    <h4 class="text-lg sm:text-xl font-light mb-5 text-center">A Dra. Luiza alerta contra práticas que podem agravar sua saúde:</h4>
+    <dl class="flex gap-4 md:gap-6 flex-col md:flex-row">
+      <div class="pb-4 flex flex-col">
+        <span class="mb-2">
+          <svg version="1.0" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="32px" height="32px" viewBox="0 0 64 64" enable-background="new 0 0 64 64" xml:space="preserve" fill="#fde6c3" transform="rotate(0)"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <g> <path fill="#fde6c3" d="M17.148,18.562L5.879,29.84C2.25,33.461,0,38.465,0,44c0,11.047,8.953,20,20,20 c5.535,0,10.539-2.25,14.16-5.879l11.277-11.27L17.148,18.562z"></path> <path fill="#fde6c3" d="M64,20C64,8.953,55.047,0,44,0c-5.449,0-10.375,2.191-13.98,5.723L30,5.703L18.562,17.148l28.289,28.289 L58.297,34l-0.02-0.02C61.809,30.375,64,25.445,64,20z M57,21.002c-0.553,0-1-0.449-1-1c0-6.629-5.373-12-12-12V8 c-0.553,0-1-0.448-1-1s0.447-1,1-1c0.002,0,0.004,0.002,0.007,0.002C51.736,6.005,58,12.271,58,20.002 C58,20.553,57.553,21.002,57,21.002z"></path> </g> </g></svg>
+    </span>
         <dt class="text-xl font-semibold mb-1">Tomar remédios sem orientação</dt>
         <dd class="text-base leading-relaxed">Pode mascarar sintomas ou causar efeitos colaterais sem tratar a causa.</dd>
       </div>
-      <div class="py-4">
+      <div class="flex flex-col">
+        <span class="mb-2">
+          <svg width="32px" height="32px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M7 12V13H12H17V12C17 10.3454 18.3395 9.00368 19.9932 9.00001C19.9847 8.67199 19.9657 8.43379 19.9231 8.21964C19.6075 6.63288 18.3671 5.39249 16.7804 5.07686C16.394 5 15.9293 5 15 5H12H9C8.07069 5 7.60603 5 7.21964 5.07686C5.63288 5.39249 4.39249 6.63288 4.07686 8.21964C4.03426 8.43379 4.01527 8.67199 4.00681 9.00001C5.66053 9.00368 7 10.3454 7 12Z" fill="#fde6c3"></path> <path d="M18.4444 18H5.55556C5.27849 18 5.00883 17.9683 4.75 17.9084V19C4.75 19.4142 4.41421 19.75 4 19.75C3.58579 19.75 3.25 19.4142 3.25 19V17.1513C2.48508 16.4991 2 15.5284 2 14.4444V12C2 10.8954 2.89543 10 4 10C5.10457 10 6 10.8954 6 12V13.2C6 13.6418 6.35817 14 6.8 14H17.2C17.6418 14 18 13.6418 18 13.2V12C18 10.8954 18.8954 10 20 10C21.1046 10 22 10.8954 22 12V14.4444C22 15.5284 21.5149 16.4991 20.75 17.1513V19C20.75 19.4142 20.4142 19.75 20 19.75C19.5858 19.75 19.25 19.4142 19.25 19V17.9084C18.9912 17.9683 18.7215 18 18.4444 18Z" fill="#fde6c3"></path> </g></svg>
+    </span>
         <dt class="text-xl font-semibold mb-1">Sedentarismo</dt>
         <dd class="text-base leading-relaxed">Contribui para dores, fraqueza muscular e piora da mobilidade.</dd>
       </div>
-      <div class="py-4">
+      <div class="flex flex-col">
+        <span class="mb-2">
+          <svg width="32px" height="32px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M12 10V13" stroke="#fde6c3" stroke-width="2" stroke-linecap="round"></path> <path d="M12 16V15.9888" stroke="#fde6c3" stroke-width="2" stroke-linecap="round"></path> <path d="M10.2518 5.147L3.6508 17.0287C2.91021 18.3618 3.87415 20 5.39912 20H18.6011C20.126 20 21.09 18.3618 20.3494 17.0287L13.7484 5.147C12.9864 3.77538 11.0138 3.77538 10.2518 5.147Z" stroke="#fde6c3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path> </g></svg>
+        </span>
         <dt class="text-xl font-semibold mb-1">Não procurar um profissional</dt>
         <dd class="text-base leading-relaxed">Atrasar o tratamento pode agravar condições e prolongar o desconforto.</dd>
       </div>
@@ -1479,7 +1493,7 @@
   </div>
 </section>
 
-<section class="bg-secondary text-secondary-content py-12">
+<section id="bem-estar" class="bg-secondary text-secondary-content py-12">
   <div class="max-w-3xl mx-auto px-4">
     <h2 class="text-3xl sm:text-4xl font-extrabold mb-6 text-center">Dê o Primeiro Passo para Seu Bem-Estar</h2>
     <p class="mb-4 leading-relaxed text-center">
