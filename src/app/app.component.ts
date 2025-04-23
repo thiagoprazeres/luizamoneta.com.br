@@ -115,49 +115,12 @@ export class AppComponent implements AfterViewInit {
       // Elementos principais
       const isotype = select('#isotype');
       const combinationMark = select('#combination-mark');
-      const isotypePaths = selectAll('#isotype path');
-      const logotype = select('#logotype');
-      const wordmark = selectAll('#wordmark path');
-      const tagline = selectAll('#tagline path');
-      const cabecalho = selectAll('#cabecalho *');
-      // const cabecalho_h1 = select('#cabecalho > h1');
-      // const cabecalho_p = select('#cabecalho > p');
-      // const cabecalho_a = select('#cabecalho > a');
-      const diferencial = selectAll('#diferencial > div');
+      const tagline = selectAll('.tagline');
+      const cabecalho = selectAll('.cabecalho');
+      const diferencial = selectAll('.diferencial');
 
-      // Animação principal
-      tl.to(isotype, { x: 64, duration: 0.08 })
-        .to(logotype, { x: -36, duration: 0.08 })
-        .to(cabecalho, { opacity: 0, y: 4, duration: 0.08 })
-        .to(diferencial, { opacity: 0, y: 4, duration: 0.08 })
-        .from(combinationMark, {
-          scale: 0,
-          opacity: 0,
-          duration: 1,
-          ease: 'elastic.out(1, 0.5)',
-        })
-        .from(
-          isotypePaths,
-          {
-            stagger: 0.1,
-            scale: 0,
-            opacity: 0,
-            transformOrigin: 'center',
-            ease: 'bounce.out',
-          },
-          '-=0.8'
-        )
-        .to(isotype, { x: 0 })
-        .to(logotype, { x: 0 }, '-=1')
-        // Animação do texto
-        .from(
-          wordmark,
-          {
-            opacity: 0,
-            scale: 0.1,
-          },
-          '-=1'
-        )
+      tl.from(isotype, { opacity: 0, y: -40 })
+        .from(combinationMark, { opacity: 0, y: -40 }, '-=0.7')
         .from(
           tagline,
           {
@@ -189,6 +152,23 @@ export class AppComponent implements AfterViewInit {
           },
           '-=0.8'
         );
+
+      // ScrollTrigger: animações para cada <section>
+      const sections = selectAll('section');
+      sections.forEach((section: Element, idx: number) => {
+        gsap.from(section, {
+          opacity: 0,
+          y: 60,
+          duration: 1,
+          ease: 'power3.out',
+          scrollTrigger: {
+            trigger: section,
+            start: 'top 80%',
+            toggleActions: 'play none none reverse',
+          },
+          delay: 0.1 * idx,
+        });
+      });
     });
   }
 }
