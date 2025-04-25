@@ -18,6 +18,52 @@
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#a05b12">
+
+  <!-- Dados estruturados Schema.org para LocalBusiness/Physiotherapist -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Physiotherapist",
+    "name": "Dra. Luiza Moneta",
+    "description": "Fisioterapeuta domiciliar em Recife. Especialista em reabilitação, DTM, gerontologia, equilíbrio e idosos.",
+    "telephone": "+5581981310778",
+    "email": "lumoneta@gmail.com",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "Recife",
+      "addressRegion": "PE",
+      "addressCountry": "BR"
+    },
+    "areaServed": {
+      "@type": "City",
+      "name": "Recife"
+    },
+    "openingHoursSpecification": [
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday"
+        ],
+        "opens": "06:00",
+        "closes": "19:00"
+      },
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": "Saturday",
+        "opens": "06:00",
+        "closes": "12:00"
+      }
+    ],
+    "url": "https://luizamoneta.com.br/",
+    "sameAs": [
+      "https://maps.app.goo.gl/q7ivg4mQXAXLbaRX6"
+    ]
+  }
+  </script>
 </head>
 <body>
   <app-root></app-root>
