@@ -201,7 +201,9 @@ export class AppComponent implements AfterViewInit {
       sectionIds.forEach((id) => {
         const el = select(`#${id} > div`);
         if (el) {
-          const tl = gsap.timeline({ defaults: { duration: 1 } });
+          const tl = gsap.timeline({
+            defaults: { duration: 1, ease: 'power3.out' },
+          });
           tl.from(el, { opacity: 0, y: 100 });
           ScrollTrigger.create({
             trigger: el,
