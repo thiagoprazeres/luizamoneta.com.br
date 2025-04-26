@@ -42,7 +42,30 @@ html {
   scroll-behavior: smooth;
 }
 
+@font-face {
+  font-family: 'Bridge';
+  src: url('/fonts/Bridge.woff2') format('woff2'),
+       url('/fonts/Bridge.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Gotham';
+  src: url('/fonts/Gotham.woff2') format('woff2'),
+       url('/fonts/Gotham.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 body {
   background-color: #f68c1b;
   color: white;
+  font-family: 'Montserrat', Arial, Helvetica, sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Oswald', Arial, Helvetica, sans-serif;
 }
