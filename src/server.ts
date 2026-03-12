@@ -1,12 +1,13 @@
-import { CommonEngine } from '@angular/ssr/node';
-import { render } from '@netlify/angular-runtime/common-engine.mjs';
+import { AngularAppEngine, createRequestHandler } from '@angular/ssr';
+import { getContext } from '@netlify/angular-runtime/context.mjs';
 
-const commonEngine = new CommonEngine();
+const angularAppEngine = new AngularAppEngine();
 
-export async function netlifyCommonEngineHandler(
-  // request: Request,
-  // context: any
+export async function netlifyAppEngineHandler(
+  request: Request
 ): Promise<Response> {
+  const context = getContext();
+
   // Example API endpoints can be defined here.
   // Uncomment and define endpoints as necessary.
   // const pathname = new URL(request.url).pathname;
@@ -14,5 +15,8 @@ export async function netlifyCommonEngineHandler(
   //   return Response.json({ message: 'Hello from the API' });
   // }
 
-  return await render(commonEngine);
+  const result = await angularAppEngine.handle(request, context);
+  return result || new Response('Not found', { status: 404 });
 }
+
+export const reqHandler = createRequestHandler(netlifyAppEngineHandler);

@@ -41,9 +41,5 @@ O site está disponível publicamente em:
 - `src/styles.css` — Estilos globais com Tailwind CSS
 - `README.md` — Este arquivo
 
-## Contato
-Para dúvidas ou sugestões, entre em contato:
-- **E-mail:** lumoneta@gmail.com
-
 ---
-Landing page desenvolvida por [@thiagoprazeres](https://github.com/thiagoprazeres) para Dra. Luiza Moneta.  
+Landing page desenvolvida por [@thiagoprazeres](https://www.linkedin.com/in/thbezerra/) para Dra. Luiza Moneta.  
