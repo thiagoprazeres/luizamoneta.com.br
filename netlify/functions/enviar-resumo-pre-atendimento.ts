@@ -18,6 +18,8 @@ import {
   type TriageSummary,
 } from '../../src/app/pre-atendimento-summary';
 
+const RESTRICTED_TEAM_EMAIL = 'thiagoprazeres@gmail.com';
+
 function json(statusCode: number, body: unknown) {
   return {
     statusCode,
@@ -112,9 +114,15 @@ function getRecipient(mode: EmailSummaryMode, patient: PatientProfile): string[]
     return [patient.email];
   }
 
-  return [
-    process.env.PRE_ATENDIMENTO_EMAIL_TO?.trim() || 'lumoneta@gmail.com',
-  ];
+  return [getPrimaryTeamRecipient()];
+}
+
+export function isRestrictedEmailMode(teamRecipient = ''): boolean {
+  return normalizeText(teamRecipient).toLowerCase() === RESTRICTED_TEAM_EMAIL;
+}
+
+function getPrimaryTeamRecipient(): string {
+  return process.env['PRE_ATENDIMENTO_EMAIL_TO']?.trim() || 'lumoneta@gmail.com';
 }
 
 function getBcc(mode: EmailSummaryMode): string[] | undefined {
@@ -122,12 +130,20 @@ function getBcc(mode: EmailSummaryMode): string[] | undefined {
     return undefined;
   }
 
-  const bcc = process.env.PRE_ATENDIMENTO_EMAIL_BCC?.trim();
+  const bcc = process.env['PRE_ATENDIMENTO_EMAIL_BCC']?.trim();
   return [bcc || 'thiagoprazeres@gmail.com'];
 }
 
-function getCc(mode: EmailSummaryMode, patient: PatientProfile): string[] | undefined {
+export function getCc(
+  mode: EmailSummaryMode,
+  patient: PatientProfile,
+  userCopyAvailable = true
+): string[] | undefined {
   if (mode !== 'finalize' || !isValidEmail(patient.email)) {
+    return undefined;
+  }
+
+  if (!userCopyAvailable) {
     return undefined;
   }
 
@@ -136,7 +152,7 @@ function getCc(mode: EmailSummaryMode, patient: PatientProfile): string[] | unde
 
 function getReplyTo(): string {
   return (
-    process.env.PRE_ATENDIMENTO_EMAIL_REPLY_TO?.trim() || 'lumoneta@gmail.com'
+    process.env['PRE_ATENDIMENTO_EMAIL_REPLY_TO']?.trim() || 'lumoneta@gmail.com'
   );
 }
 
@@ -226,19 +242,26 @@ function buildUserMessagesHtml(messages: string[]): string {
   `.trim();
 }
 
-function buildResponseMessage(
+export function buildResponseMessage(
   mode: EmailSummaryMode,
-  userIncluded: boolean
+  userIncluded: boolean,
+  userCopyAvailable: boolean
 ): string {
+  if (!userCopyAvailable) {
+    return mode === 'user_copy'
+      ? 'A cópia por e-mail ao paciente esta temporariamente indisponivel neste ambiente de testes.'
+      : 'Resumo enviado para a equipe por e-mail. A cópia ao paciente sera habilitada assim que o envio estiver configurado.';
+  }
+
   if (mode === 'user_copy') {
     return 'Copia enviada para o e-mail informado.';
   }
 
   if (userIncluded) {
-    return 'Resumo enviado para a equipe e uma copia foi enviada para o e-mail informado.';
+    return 'Resumo enviado para a equipe e uma cópia foi enviada para o e-mail informado.';
   }
 
-  return 'Resumo enviado para a equipe. Se você preencher um e-mail valido, eu envio uma copia tambem.';
+  return 'Resumo enviado para a equipe. Se você preencher um e-mail valido, eu envio uma cópia tambem.';
 }
 
 export const handler: Handler = async (event) => {
@@ -246,11 +269,11 @@ export const handler: Handler = async (event) => {
     return json(405, { error: 'Method not allowed.' });
   }
 
-  if (!process.env.RESEND_API_KEY) {
+  if (!process.env['RESEND_API_KEY']) {
     return json(500, { message: 'RESEND_API_KEY is not configured.' });
   }
 
-  if (!process.env.PRE_ATENDIMENTO_EMAIL_FROM?.trim()) {
+  if (!process.env['PRE_ATENDIMENTO_EMAIL_FROM']?.trim()) {
     return json(500, {
       message: 'PRE_ATENDIMENTO_EMAIL_FROM is not configured.',
     });
@@ -288,13 +311,29 @@ export const handler: Handler = async (event) => {
 
   if (payload.mode === 'user_copy' && !isValidEmail(patient.email)) {
     return json(400, {
-      message: 'Um e-mail valido e obrigatorio para enviar a copia ao usuario.',
+      message: 'Um e-mail valido e obrigatorio para enviar a cópia ao usuario.',
     });
   }
 
-  const resend = new Resend(process.env.RESEND_API_KEY);
+  const primaryTeamRecipient = getPrimaryTeamRecipient();
+  const userCopyAvailable = !isRestrictedEmailMode(primaryTeamRecipient);
+
+  if (payload.mode === 'user_copy' && !userCopyAvailable) {
+    const result: PreAtendimentoEmailResponse = {
+      ok: true,
+      mode: payload.mode,
+      message: buildResponseMessage(payload.mode, false, userCopyAvailable),
+      userIncluded: false,
+      userCopyAvailable,
+    };
+
+    return json(200, result);
+  }
+
+  const resend = new Resend(process.env['RESEND_API_KEY']);
   const subject = buildSubject(payload.mode, patient);
-  const userIncluded = payload.mode === 'finalize' && isValidEmail(patient.email);
+  const userIncluded =
+    payload.mode === 'finalize' && isValidEmail(patient.email) && userCopyAvailable;
   const textParts = [
     assistantReply,
     buildUserMessagesText(userMessages),
@@ -311,9 +350,9 @@ export const handler: Handler = async (event) => {
 
   try {
     const response = await resend.emails.send({
-      from: process.env.PRE_ATENDIMENTO_EMAIL_FROM,
+      from: process.env['PRE_ATENDIMENTO_EMAIL_FROM'],
       to: getRecipient(payload.mode, patient),
-      cc: getCc(payload.mode, patient),
+      cc: getCc(payload.mode, patient, userCopyAvailable),
       bcc: getBcc(payload.mode),
       replyTo: getReplyTo(),
       subject,
@@ -342,8 +381,13 @@ export const handler: Handler = async (event) => {
     const result: PreAtendimentoEmailResponse = {
       ok: true,
       mode: payload.mode,
-      message: buildResponseMessage(payload.mode, userIncluded),
+      message: buildResponseMessage(
+        payload.mode,
+        userIncluded,
+        userCopyAvailable
+      ),
       userIncluded,
+      userCopyAvailable,
     };
 
     return json(200, result);

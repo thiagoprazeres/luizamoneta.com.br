@@ -1,0 +1,71 @@
+import {
+  buildWhatsAppHandoffMessage,
+  type PatientProfile,
+} from './pre-atendimento-summary';
+
+describe('buildWhatsAppHandoffMessage', () => {
+  const createPatient = (
+    overrides: Partial<PatientProfile> = {}
+  ): PatientProfile => ({
+    nome: 'Marina',
+    idade: '62',
+    regiao: 'Zona Norte do Recife',
+    sintomas: 'dor no joelho ao subir escadas',
+    email: 'marina@example.com',
+    whatsapp: '(81) 98131-0778',
+    ...overrides,
+  });
+
+  it('monta o handoff com nome e queixa curta', () => {
+    const message = buildWhatsAppHandoffMessage(
+      createPatient(),
+      'Bom dia'
+    );
+
+    expect(message).toBe(
+      'Bom dia!\n\nOi, sou Marina. Acabei de concluir meu pre-atendimento pelo site e queria continuar por aqui.\n\nMinha principal queixa e: dor no joelho ao subir escadas.'
+    );
+  });
+
+  it('trunca a queixa longa sem carregar a frase seguinte', () => {
+    const message = buildWhatsAppHandoffMessage(
+      createPatient({
+        sintomas:
+          'dor no ombro direito ha algumas semanas, piora para levantar o braco, vestir roupa, carregar sacolas pesadas, dirigir por muito tempo e alcancar objetos altos no armario. Tambem sinto dormencia nos dedos.',
+      }),
+      'Boa tarde'
+    );
+
+    expect(message).toContain(
+      'Minha principal queixa e: dor no ombro direito ha algumas semanas, piora para levantar o braco, vestir roupa, carregar sacolas pesadas,...'
+    );
+    expect(message).not.toContain('Tambem sinto dormencia nos dedos');
+  });
+
+  it('remove a linha da queixa quando sintomas nao estao disponiveis', () => {
+    const message = buildWhatsAppHandoffMessage(
+      createPatient({ sintomas: '   ' }),
+      'Boa noite'
+    );
+
+    expect(message).toBe(
+      'Boa noite!\n\nOi, sou Marina. Acabei de concluir meu pre-atendimento pelo site e queria continuar por aqui.'
+    );
+    expect(message).not.toContain('Minha principal queixa e:');
+  });
+
+  it('ignora o safetyNotice e mantem a mesma mensagem', () => {
+    const patient = createPatient({
+      sintomas: 'tontura ao levantar da cama',
+    });
+
+    const withoutSafety = buildWhatsAppHandoffMessage(patient, 'Bom dia');
+    const withSafety = buildWhatsAppHandoffMessage(
+      patient,
+      'Bom dia',
+      'Se a tontura piorar, procure urgencia.'
+    );
+
+    expect(withSafety).toBe(withoutSafety);
+  });
+});

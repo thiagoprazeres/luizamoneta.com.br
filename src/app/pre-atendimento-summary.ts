@@ -56,6 +56,7 @@ export interface PreAtendimentoEmailResponse {
   mode: EmailSummaryMode;
   message: string;
   userIncluded: boolean;
+  userCopyAvailable: boolean;
 }
 
 export const REQUIRED_FIELDS: RequiredField[] = [
@@ -348,8 +349,8 @@ export function buildRichFinalReply(
 
   const saudacao = nome
     ? safety
-      ? `Ola, ${nome}.`
-      : `Ola, ${nome}! Tudo bem por aqui? 😊`
+      ? `Olá, ${nome}.`
+      : `Olá, ${nome}! Tudo bem por aqui? 😊`
     : safety
       ? 'Ola.'
       : 'Ola! Tudo bem por aqui? 😊';
@@ -389,6 +390,75 @@ export function buildRichFinalReply(
     coberturaTexto,
     ctaPadrao,
   ].join('\n\n');
+}
+
+function formatWhatsappGreeting(saudacao: string): string {
+  const normalized = normalizeText(saudacao);
+
+  if (!normalized) {
+    return 'Ola!';
+  }
+
+  return /[.!?]$/.test(normalized) ? normalized : `${normalized}!`;
+}
+
+function extractPrimaryComplaint(rawSymptoms: string): string {
+  const normalized = normalizeText(rawSymptoms);
+
+  if (!normalized) {
+    return '';
+  }
+
+  const [firstSentence = ''] = normalized
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => normalizeText(sentence))
+    .filter(Boolean);
+
+  return firstSentence;
+}
+
+function truncatePrimaryComplaint(complaint: string, maxLength = 120): string {
+  const sanitized = normalizeText(complaint).replace(/[.!?]+$/g, '');
+
+  if (!sanitized) {
+    return '';
+  }
+
+  if (sanitized.length <= maxLength) {
+    return `${sanitized}.`;
+  }
+
+  const clipped = sanitized.slice(0, Math.max(1, maxLength - 3)).trimEnd();
+  const lastSpace = clipped.lastIndexOf(' ');
+  const withoutBrokenWord =
+    lastSpace >= Math.floor(clipped.length / 2)
+      ? clipped.slice(0, lastSpace)
+      : clipped;
+
+  return `${withoutBrokenWord.trimEnd()}...`;
+}
+
+export function buildWhatsAppHandoffMessage(
+  patient: PatientProfile,
+  saudacao = '',
+  safetyNotice = ''
+): string {
+  void safetyNotice;
+
+  const abertura = normalizeText(patient.nome)
+    ? `Oi, sou ${normalizeText(patient.nome)}. Acabei de concluir meu pre-atendimento pelo site e queria continuar por aqui.`
+    : 'Oi, acabei de concluir meu pre-atendimento pelo site e queria continuar por aqui.';
+  const gancho = truncatePrimaryComplaint(
+    extractPrimaryComplaint(patient.sintomas)
+  );
+
+  return [
+    formatWhatsappGreeting(saudacao),
+    abertura,
+    gancho ? `Minha principal queixa e: ${gancho}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 export function getPreAtendimentoSummarySections(

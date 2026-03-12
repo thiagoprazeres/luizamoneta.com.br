@@ -5,11 +5,13 @@
   "compilerOptions": {
     "outDir": "./out-tsc/spec",
     "types": [
-      "jasmine"
+      "jasmine",
+      "node"
     ]
   },
   "include": [
     "src/**/*.spec.ts",
+    "netlify/functions/**/*.spec.ts",
     "src/**/*.d.ts"
   ]
 }

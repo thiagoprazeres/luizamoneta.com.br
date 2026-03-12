@@ -22,7 +22,7 @@ import ScrollTrigger from 'gsap/ScrollTrigger';
 import { firstValueFrom } from 'rxjs';
 import {
   buildRichFinalReply,
-  buildPreAtendimentoTextSummary,
+  buildWhatsAppHandoffMessage,
   type ChatApiRequest,
   type ChatApiResponse,
   type ChatRole,
@@ -156,6 +156,7 @@ export class AppComponent implements AfterViewInit {
   emailDispatchMessage = '';
   userCopyEmailSent = false;
   userCopyEmailTarget = '';
+  userCopyEmailAvailable = true;
 
   private nextMessageId = 1;
 
@@ -232,6 +233,7 @@ export class AppComponent implements AfterViewInit {
     this.emailDispatchMessage = '';
     this.userCopyEmailSent = false;
     this.userCopyEmailTarget = '';
+    this.userCopyEmailAvailable = true;
     this.dadosUsuario = createEmptyPatientProfile();
     this.triageSummary = createEmptyTriageSummary();
     this.nextMessageId = 1;
@@ -443,7 +445,7 @@ export class AppComponent implements AfterViewInit {
       this.triageSummary,
       this.buildLocalTriage(patient)
     );
-    const mensagem = this.montarMensagemWhatsApp(patient, triage);
+    const mensagem = this.montarMensagemWhatsApp(patient);
     const numero = this.PHONE_NUMBER.replace(/\D/g, '');
     const urlWhatsApp = `https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`;
 
@@ -453,6 +455,7 @@ export class AppComponent implements AfterViewInit {
     window.open(urlWhatsApp, '_blank', 'noopener,noreferrer');
 
     if (
+      this.userCopyEmailAvailable &&
       isValidEmailValue(patient.email) &&
       (!this.userCopyEmailSent || this.userCopyEmailTarget !== patient.email)
     ) {
@@ -461,23 +464,13 @@ export class AppComponent implements AfterViewInit {
   }
 
   montarMensagemWhatsApp(
-    patient: PatientProfile = this.obterDadosPaciente(),
-    triage: TriageSummary = this.mergeTriageSummary(
-      this.triageSummary,
-      this.buildLocalTriage(this.obterDadosPaciente())
-    )
+    patient: PatientProfile = this.obterDadosPaciente()
   ): string {
-    const resumo = buildPreAtendimentoTextSummary(
+    return buildWhatsAppHandoffMessage(
       patient,
-      triage,
+      this.saudacao,
       this.safetyNotice
     );
-
-    return `${this.saudacao}
-
-Ola, gostaria de continuar meu pre-atendimento domiciliar pelo WhatsApp.
-
-${resumo}`;
   }
 
   corrigirDados() {
@@ -587,7 +580,7 @@ ${resumo}`;
     this.emailDispatchMessage =
       mode === 'finalize'
         ? 'Enviando o resumo do pre-atendimento por e-mail...'
-        : 'Enviando sua copia por e-mail...';
+        : 'Enviando sua cópia por e-mail...';
 
     const payload: PreAtendimentoEmailPayload = {
       mode,
@@ -609,13 +602,18 @@ ${resumo}`;
       this.emailDispatchState = 'sent';
       this.emailDispatchTone = 'success';
       this.emailDispatchMessage = response.message;
+      this.userCopyEmailAvailable = response.userCopyAvailable;
 
       if (mode === 'finalize' && response.userIncluded && patient.email) {
         this.userCopyEmailSent = true;
         this.userCopyEmailTarget = patient.email;
       }
 
-      if (mode === 'user_copy' && patient.email) {
+      if (
+        mode === 'user_copy' &&
+        response.userCopyAvailable &&
+        patient.email
+      ) {
         this.userCopyEmailSent = true;
         this.userCopyEmailTarget = patient.email;
       }
@@ -627,7 +625,7 @@ ${resumo}`;
       this.emailDispatchMessage =
         mode === 'finalize'
           ? 'Nao consegui enviar o resumo por e-mail agora, mas você pode seguir no WhatsApp sem problema.'
-          : 'Nao consegui enviar sua copia por e-mail agora, mas o WhatsApp ja esta pronto para continuar.';
+          : 'Nao consegui enviar sua cópia por e-mail agora, mas o WhatsApp ja esta pronto para continuar.';
 
       if (error instanceof HttpErrorResponse) {
         const backendMessage =

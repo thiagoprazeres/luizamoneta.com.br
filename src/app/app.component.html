@@ -1365,7 +1365,7 @@
                     </div>
                   } @else {
                     <div
-                      class="w-10 rounded-full bg-secondary/15 text-secondary-content border border-secondary/15 flex items-center justify-center"
+                      class="w-10 rounded-full bg-white/80 text-secondary-content border border-secondary/15 flex items-center justify-center"
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -1454,8 +1454,17 @@
                   </h5>
                   <p class="text-sm text-neutral/75">
                     A orientação inicial já apareceu no chat acima. Aqui embaixo
-                    deixei o resumo estruturado para você revisar, seguir no
-                    WhatsApp e registrar tudo por e-mail com a equipe.
+                    deixei o resumo estruturado para você revisar.
+                    @if (userCopyEmailAvailable) {
+                      O resumo completo segue por e-mail com a equipe, e o
+                      WhatsApp abre uma mensagem curtinha só para continuar o
+                      atendimento.
+                    } @else {
+                      O resumo segue por e-mail com a equipe, e a cópia para o
+                      paciente será habilitada quando o envio estiver
+                      configurado. O WhatsApp já está pronto para continuar o
+                      atendimento.
+                    }
                   </p>
                 </div>
 
