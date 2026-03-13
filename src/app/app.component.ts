@@ -211,12 +211,24 @@ function sanitizeSymptomPunctuation(value: string): string {
     .trim();
 }
 
+function stripTrailingContactInfo(value: string): string {
+  return normalizeTextValue(value)
+    .replace(
+      /\b(?:meu\s+(?:e-?mail|whatsapp|zap)|e-?mail|whatsapp|zap)\b.*$/i,
+      ''
+    )
+    .replace(/\s*[,;:-]?\s*[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}.*$/i, '')
+    .replace(
+      /\s*[,;:-]?\s*(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)\d{4,5}[-.\s]?\d{4}.*$/i,
+      ''
+    );
+}
+
 function cleanSymptomFragment(value: string): string {
   return limparFragmentoExtraido(
     normalizeTextValue(
-      sanitizeSymptomPunctuation(limparFragmentoExtraido(value)).replace(
-        /\b(?:meu\s+(?:e-?mail|whatsapp|zap)|e-?mail|whatsapp|zap)\b.*$/i,
-        ''
+      stripTrailingContactInfo(
+        sanitizeSymptomPunctuation(limparFragmentoExtraido(value))
       )
     )
   );
@@ -292,6 +304,27 @@ function extractCompactIdentity(message: string): Partial<PatientProfile> {
     nome: limparFragmentoExtraido(compactIdentity[1]),
     idade: compactIdentity[2],
     regiao: normalizeRegionFragment(compactIdentity[3]),
+  };
+}
+
+function extractLeadingCompactIdentity(message: string): Partial<PatientProfile> {
+  const normalized = normalizeTextValue(message);
+  if (!normalized) {
+    return {};
+  }
+
+  const leadingCompactIdentity = normalized.match(
+    /^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' -]{1,80})\s*,\s*(\d{1,3})(?:\s+anos?)?\s*,\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' -]{2,80})(?=\s*,|$)/i
+  );
+
+  if (!leadingCompactIdentity) {
+    return {};
+  }
+
+  return {
+    nome: limparFragmentoExtraido(leadingCompactIdentity[1]),
+    idade: leadingCompactIdentity[2],
+    regiao: normalizeRegionFragment(leadingCompactIdentity[3]),
   };
 }
 
@@ -421,25 +454,36 @@ export function extractPatientDataFromMessage(
   }
 
   const residualMessage = buildResidualMessage(rawMessage, segmentsToStrip);
+  const leadingCompactIdentity = extractLeadingCompactIdentity(rawMessage);
   const compactIdentity = extractCompactIdentity(residualMessage);
   const compactNameAndRegion = extractCompactNameAndRegion(residualMessage);
   const looseAgeAndRegion = extractLooseAgeAndRegion(residualMessage);
 
-  if (!extracted.nome && (compactIdentity.nome || compactNameAndRegion.nome)) {
-    extracted.nome = compactIdentity.nome || compactNameAndRegion.nome;
+  if (
+    !extracted.nome &&
+    (leadingCompactIdentity.nome || compactIdentity.nome || compactNameAndRegion.nome)
+  ) {
+    extracted.nome =
+      leadingCompactIdentity.nome || compactIdentity.nome || compactNameAndRegion.nome;
   }
 
-  if (!extracted.idade && (compactIdentity.idade || looseAgeAndRegion.idade)) {
-    extracted.idade = compactIdentity.idade || looseAgeAndRegion.idade;
+  if (
+    !extracted.idade &&
+    (leadingCompactIdentity.idade || compactIdentity.idade || looseAgeAndRegion.idade)
+  ) {
+    extracted.idade =
+      leadingCompactIdentity.idade || compactIdentity.idade || looseAgeAndRegion.idade;
   }
 
   if (
     !extracted.regiao &&
-    (compactIdentity.regiao ||
+    (leadingCompactIdentity.regiao ||
+      compactIdentity.regiao ||
       compactNameAndRegion.regiao ||
       looseAgeAndRegion.regiao)
   ) {
     extracted.regiao =
+      leadingCompactIdentity.regiao ||
       compactIdentity.regiao ||
       compactNameAndRegion.regiao ||
       looseAgeAndRegion.regiao;

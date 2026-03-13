@@ -46,3 +46,6 @@ Thumbs.db
 
 # Local Netlify folder
 .netlify
+
+# Generated videos
+/public/assets/generated/*.mp4

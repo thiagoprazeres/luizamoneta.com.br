@@ -198,6 +198,21 @@ describe('AppComponent', () => {
     });
   });
 
+  it('extrai nome, idade, regiao, sintomas e contato quando tudo vem numa linha compacta', () => {
+    expect(
+      extractPatientDataFromMessage(
+        'Nathália Augusta,34 anos,zona sul, estou sentindo dores e tontura, 81996541067, nathaliaoftalmozs@gmail.com'
+      )
+    ).toEqual({
+      nome: 'Nathália Augusta',
+      idade: '34',
+      regiao: 'Zona Sul',
+      sintomas: 'dores e tontura',
+      email: 'nathaliaoftalmozs@gmail.com',
+      whatsapp: '(81) 99654-1067',
+    });
+  });
+
   it('apos duas mensagens compactas, deixa apenas a idade pendente', () => {
     const patient: PatientProfile = {
       nome: '',

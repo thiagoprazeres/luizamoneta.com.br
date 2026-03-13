@@ -86,6 +86,7 @@ Voce pode sobrescrever parametros sem alterar codigo:
 ```bash
 npm run generate:video:institucional -- --seconds 4
 npm run generate:video:institucional -- --seconds 12 --size 720x1280
+npm run generate:video:institucional -- --seconds 12 --model sora-2-pro --size 720x1280
 npm run generate:video:institucional -- --model sora-2 --size 1024x1792
 npm run generate:video:institucional -- --model sora-2-pro --size 1792x1024
 npm run generate:video:institucional -- --reference public/assets/generated/brand-reference-720x1280.png
