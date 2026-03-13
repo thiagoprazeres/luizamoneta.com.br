@@ -1,4 +1,8 @@
-import { AppComponent } from './app.component';
+import {
+  AppComponent,
+  extractPatientDataFromMessage,
+  getWhatsappMaskExpression,
+} from './app.component';
 import {
   hasValidReturnContact,
   type PatientProfile,
@@ -99,6 +103,76 @@ describe('AppComponent', () => {
 
     expect(windowOpenSpy).toHaveBeenCalled();
     expect(enviarResumoPorEmail).not.toHaveBeenCalled();
+  });
+
+  it('extrai idade e regiao de uma mensagem curta com os dois campos juntos', () => {
+    expect(extractPatientDataFromMessage('54 Recife pernambucano')).toEqual({
+      idade: '54',
+      regiao: 'Recife pernambucano',
+    });
+  });
+
+  it('extrai nome, idade e regiao de uma mensagem compacta separada por virgulas', () => {
+    expect(extractPatientDataFromMessage('Nathalia,34,recife')).toEqual({
+      nome: 'Nathalia',
+      idade: '34',
+      regiao: 'recife',
+    });
+  });
+
+  it('usa mascara de WhatsApp com nono digito para numeros de celular', () => {
+    expect(getWhatsappMaskExpression('819')).toEqual([
+      '(',
+      /\d/,
+      /\d/,
+      ')',
+      ' ',
+      /\d/,
+      /\d/,
+      /\d/,
+      /\d/,
+      /\d/,
+      '-',
+      /\d/,
+      /\d/,
+      /\d/,
+      /\d/,
+    ]);
+  });
+
+  it('usa mascara de telefone com 8 digitos quando o terceiro digito nao e 9', () => {
+    expect(getWhatsappMaskExpression('813')).toEqual([
+      '(',
+      /\d/,
+      /\d/,
+      ')',
+      ' ',
+      /\d/,
+      /\d/,
+      /\d/,
+      /\d/,
+      '-',
+      /\d/,
+      /\d/,
+      /\d/,
+      /\d/,
+    ]);
+  });
+
+  it('limpa a regiao e impede que sintomas carreguem contato junto', () => {
+    expect(
+      extractPatientDataFromMessage(
+        'Olá Luiza, meu nome é Thiago, tenho 40 anos e moro nas Graças. Estou sentindo uma dor forte no tornozelo, principalmente após jogar bola. Meu e-mail é thiagoprazeres@gmail.com e meu WhatsApp (81) 99707-0825'
+      )
+    ).toEqual({
+      nome: 'Thiago',
+      idade: '40',
+      regiao: 'Graças',
+      sintomas:
+        'uma dor forte no tornozelo, principalmente apos jogar bola',
+      email: 'thiagoprazeres@gmail.com',
+      whatsapp: '(81) 99707-0825',
+    });
   });
 
   it('agenda o debug por inatividade e reinicia o timer a cada nova mensagem', () => {

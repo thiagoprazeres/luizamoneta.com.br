@@ -1310,9 +1310,9 @@
             <span class="bg-secondary"
               >{{ saudacao + "! " }}<br />
               Converse com a nossa <strong>assistente virtual</strong> e faça um
-              <strong>pré-atendimento online</strong> em até 3 mensagens. No
-              fim, eu já deixo o <strong>WhatsApp prontinho</strong> para você
-              seguir com sua <strong>consulta domiciliar</strong>.</span
+              <strong>pré-atendimento online</strong> no seu ritmo. No fim, eu
+              já deixo o <strong>WhatsApp prontinho</strong> para você seguir
+              com sua <strong>consulta domiciliar</strong>.</span
             >
           </p>
         </div>
@@ -1334,16 +1334,12 @@
                   Modo assistido
                 </div>
               }
-              <!-- <p class="mt-2 text-xs opacity-80">
-                {{ mensagensRestantes }} de {{ MAX_CHAT_TURNS }} mensagens
-                restantes
-              </p> -->
             </div>
           </div>
 
           <div
             id="agendamento-chat-log"
-            class="max-h-[30rem] overflow-y-auto px-4 py-5"
+            class="px-2 py-5"
           >
             @for (message of chatMessages; track message.id) {
               <div
@@ -1391,7 +1387,7 @@
                 <div
                   class="chat-bubble whitespace-pre-line"
                   [class.bg-primary]="message.role === 'assistant'"
-                  [class.text-primary-content]="message.role === 'assistant'"
+                  [class.text-white]="message.role === 'assistant'"
                   [class.bg-secondary]="message.role === 'user'"
                   [class.text-secondary-content]="message.role === 'user'"
                 >
@@ -1433,9 +1429,9 @@
           @if (erroChat) {
             <div class="px-4 pb-2">
               <div
-                class="alert alert-warning bg-warning/15 text-warning-content"
+                class="opacity-10"
               >
-                <span class="text-sm">{{ erroChat }}</span>
+                <span class="text-xs">{{ erroChat }}</span>
               </div>
             </div>
           }
@@ -1453,30 +1449,31 @@
                     Prontinho, {{ formatarCampo(dadosUsuario.nome) }}.
                   </h5>
                   <p class="text-sm text-neutral/75">
-                    A orientação inicial já apareceu no chat acima. Aqui embaixo
-                    deixei o resumo estruturado para você revisar.
                     @if (userCopyEmailAvailable) {
                       O resumo completo segue por e-mail com a equipe, e o
                       WhatsApp abre uma mensagem curtinha só para continuar o
                       atendimento.
                     } @else {
-                      O resumo segue por e-mail com a equipe, e a cópia para o
+                      O resumo segue por e-mail com a equipe
+                      <!-- , e a cópia para o
                       paciente será habilitada quando o envio estiver
-                      configurado. O WhatsApp já está pronto para continuar o
+                      configurado -->
+                      . O WhatsApp já está pronto para continuar o
                       atendimento.
                     }
                   </p>
                 </div>
 
                 @if (safetyNotice) {
-                  <div class="alert alert-warning">
+                  <div class="alert alert-error">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6"><path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd" /></svg>
                     <span class="text-sm">{{ safetyNotice }}</span>
                   </div>
                 }
 
                 @if (emailDispatchState !== "idle" && emailDispatchMessage) {
                   <div
-                    class="alert alert-xs"
+                    class="alert alert-xs text-xs"
                     [class.alert-info]="emailDispatchTone === 'info'"
                     [class.alert-success]="emailDispatchTone === 'success'"
                     [class.alert-warning]="emailDispatchTone === 'warning'"
@@ -1486,7 +1483,7 @@
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 24 24"
                         fill="currentColor"
-                        class="size-6"
+                        class="size-4"
                       >
                         <path
                           d="M1.5 8.67v8.58a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3V8.67l-8.928 5.493a3 3 0 0 1-3.144 0L1.5 8.67Z"
@@ -1619,12 +1616,13 @@
                         <input
                           type="tel"
                           [formControl]="consultaForm.controls.whatsapp"
+                          [maskito]="whatsappMaskOptions"
                           class="input input-bordered input-primary w-full bg-white"
                           placeholder="(81) 98131-0778"
                           autocomplete="tel"
                         />
                         <p class="mt-2 text-xs text-neutral/70">
-                          Com DDD. Pode ser o melhor número para retorno.
+                          Seu melhor número para retorno.
                         </p>
                         @if (
                           consultaForm.controls.whatsapp.invalid &&

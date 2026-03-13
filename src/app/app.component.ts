@@ -18,12 +18,15 @@ import {
   ValidationErrors,
   Validators,
 } from '@angular/forms';
+import { MaskitoDirective } from '@maskito/angular';
+import type { MaskitoMaskExpression, MaskitoOptions } from '@maskito/core';
 import gsap from 'gsap';
 import ScrollTrigger from 'gsap/ScrollTrigger';
 import { firstValueFrom } from 'rxjs';
 import {
   buildRichFinalReply,
   buildWhatsAppHandoffMessage,
+  canFinalizePreAtendimento,
   type ChatApiRequest,
   type ChatApiResponse,
   type ChatRole,
@@ -66,13 +69,12 @@ interface PreAtendimentoSessionState {
 type EmailDispatchState = 'idle' | 'sending' | 'sent' | 'error';
 type EmailDispatchTone = 'info' | 'warning' | 'success';
 
-const MAX_CHAT_TURNS = 3;
 const DEBUG_INACTIVITY_MS = 5 * 60 * 1000;
 const FIELD_LABELS: Record<RequiredField, string> = {
   nome: 'seu nome',
   idade: 'sua idade',
-  regiao: 'sua regiao em Recife',
-  sintomas: 'o que você esta sentindo',
+  regiao: 'sua região em Recife',
+  sintomas: 'o que você está sentindo',
 };
 const SAFETY_KEYWORDS = [
   'desmaio',
@@ -88,6 +90,57 @@ const SAFETY_KEYWORDS = [
   'trauma grave',
   'perda subita da visao',
 ];
+const SYMPTOM_KEYWORDS = [
+  'dor',
+  'tontura',
+  'vertigem',
+  'zumbido',
+  'ombro',
+  'joelho',
+  'coluna',
+  'lombar',
+  'cervical',
+  'mandibula',
+  'equilibrio',
+  'fraqueza',
+  'formigamento',
+  'queda',
+  'rigidez',
+];
+const MASKITO_DIGIT = /\d/;
+const WHATSAPP_MASK_10: MaskitoMaskExpression = [
+  '(',
+  MASKITO_DIGIT,
+  MASKITO_DIGIT,
+  ')',
+  ' ',
+  MASKITO_DIGIT,
+  MASKITO_DIGIT,
+  MASKITO_DIGIT,
+  MASKITO_DIGIT,
+  '-',
+  MASKITO_DIGIT,
+  MASKITO_DIGIT,
+  MASKITO_DIGIT,
+  MASKITO_DIGIT,
+];
+const WHATSAPP_MASK_11: MaskitoMaskExpression = [
+  '(',
+  MASKITO_DIGIT,
+  MASKITO_DIGIT,
+  ')',
+  ' ',
+  MASKITO_DIGIT,
+  MASKITO_DIGIT,
+  MASKITO_DIGIT,
+  MASKITO_DIGIT,
+  MASKITO_DIGIT,
+  '-',
+  MASKITO_DIGIT,
+  MASKITO_DIGIT,
+  MASKITO_DIGIT,
+  MASKITO_DIGIT,
+];
 
 function whatsappValidator(
   control: AbstractControl<string>
@@ -98,6 +151,18 @@ function whatsappValidator(
   }
 
   return isValidWhatsapp(value) ? null : { whatsapp: true };
+}
+
+export function getWhatsappMaskExpression(
+  value: string
+): MaskitoMaskExpression {
+  const digits = value.replace(/\D/g, '');
+
+  if (digits.length <= 2) {
+    return WHATSAPP_MASK_11;
+  }
+
+  return digits[2] === '9' ? WHATSAPP_MASK_11 : WHATSAPP_MASK_10;
 }
 
 function createEmptyPatientProfile(): PatientProfile {
@@ -123,9 +188,219 @@ function createEmptyTriageSummary(): TriageSummary {
   };
 }
 
+function removeAccents(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function limparFragmentoExtraido(value: string): string {
+  return normalizeTextValue(
+    value
+      .replace(/\b(e tenho|e moro|e sinto|e estou|com sintomas?.*)$/i, '')
+      .replace(/[,.!;:]+$/, '')
+  );
+}
+
+function normalizeRegionFragment(value: string): string {
+  return limparFragmentoExtraido(value).replace(/^(?:em|na|no|nas|nos)\s+/i, '');
+}
+
+function cleanSymptomFragment(value: string): string {
+  return limparFragmentoExtraido(
+    normalizeTextValue(
+      limparFragmentoExtraido(value).replace(
+        /\b(?:meu\s+(?:e-?mail|whatsapp|zap)|e-?mail|whatsapp|zap)\b.*$/i,
+        ''
+      )
+    )
+  );
+}
+
+function containsSymptomKeyword(text: string): boolean {
+  return SYMPTOM_KEYWORDS.some((keyword) => text.includes(keyword));
+}
+
+function buildResidualMessage(rawMessage: string, segmentsToStrip: string[]): string {
+  let cleanedMessage = rawMessage;
+
+  for (const segment of segmentsToStrip) {
+    cleanedMessage = cleanedMessage.replace(segment, ' ');
+  }
+
+  return normalizeTextValue(cleanedMessage);
+}
+
+function looksLikeRegionFragment(fragment: string): boolean {
+  const normalized = removeAccents(normalizeTextValue(fragment).toLowerCase());
+
+  if (!normalized || containsSymptomKeyword(normalized)) {
+    return false;
+  }
+
+  return normalized.includes('recife') || normalized.includes('zona ') || normalized.split(/\s+/).length >= 2;
+}
+
+function extractLooseAgeAndRegion(message: string): Partial<PatientProfile> {
+  const normalized = normalizeTextValue(message);
+  if (!normalized) {
+    return {};
+  }
+
+  const compactAgeAndRegion = normalized.match(
+    /^(\d{1,3})(?:\s+anos?)?(?:\s+|[-,.;:]+)([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' -]{2,80})$/i
+  );
+  if (compactAgeAndRegion) {
+      return {
+        idade: compactAgeAndRegion[1],
+        regiao: normalizeRegionFragment(compactAgeAndRegion[2]),
+      };
+  }
+
+  const ageOnly = normalized.match(/^(\d{1,3})(?:\s+anos?)?$/i);
+  if (ageOnly) {
+    return { idade: ageOnly[1] };
+  }
+
+  if (looksLikeRegionFragment(normalized)) {
+    return { regiao: normalizeRegionFragment(normalized) };
+  }
+
+  return {};
+}
+
+function extractCompactIdentity(message: string): Partial<PatientProfile> {
+  const normalized = normalizeTextValue(message);
+  if (!normalized) {
+    return {};
+  }
+
+  const compactIdentity = normalized.match(
+    /^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' -]{1,50})\s*[,;/-]\s*(\d{1,3})(?:\s+anos?)?\s*[,;/-]\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' -]{2,80})$/i
+  );
+
+  if (!compactIdentity) {
+    return {};
+  }
+
+  return {
+    nome: limparFragmentoExtraido(compactIdentity[1]),
+    idade: compactIdentity[2],
+    regiao: normalizeRegionFragment(compactIdentity[3]),
+  };
+}
+
+export function extractPatientDataFromMessage(
+  message: string
+): Partial<PatientProfile> {
+  const extracted: Partial<PatientProfile> = {};
+  const rawMessage = message.trim();
+  const lowerMessage = removeAccents(rawMessage.toLowerCase());
+  const segmentsToStrip: string[] = [];
+
+  const emailMatch = rawMessage.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  if (emailMatch) {
+    extracted.email = emailMatch[0].trim();
+    segmentsToStrip.push(emailMatch[0]);
+  }
+
+  const whatsappMatch = rawMessage.match(
+    /(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)\d{4,5}[-.\s]?\d{4}/
+  );
+  if (whatsappMatch && isValidWhatsapp(whatsappMatch[0])) {
+    extracted.whatsapp = formatWhatsapp(whatsappMatch[0]);
+    segmentsToStrip.push(whatsappMatch[0]);
+  }
+
+  const agePatterns = [
+    /(?:idade\s*[:\-]?\s*|tenho\s+)(\d{1,3})\s*anos?/i,
+    /\b(\d{1,3})\s*anos?\b/i,
+  ];
+  for (const pattern of agePatterns) {
+    const match = rawMessage.match(pattern);
+    if (match?.[1]) {
+      extracted.idade = match[1];
+      segmentsToStrip.push(match[0]);
+      break;
+    }
+  }
+
+  const namePatterns = [
+    /(?:meu nome e|me chamo|pode me chamar de)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' -]{1,50})/i,
+    /^(?:sou|eu sou)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' -]{1,50})(?:[,.!\n]|$)/i,
+  ];
+  for (const pattern of namePatterns) {
+    const match = removeAccents(rawMessage).match(pattern);
+    if (match?.[1]) {
+      const candidate = limparFragmentoExtraido(match[1]);
+      if (candidate && !/^(da|de|do|zona)\b/i.test(candidate)) {
+        extracted.nome = candidate;
+        segmentsToStrip.push(match[0]);
+        break;
+      }
+    }
+  }
+
+  const explicitZone = lowerMessage.match(/\bzona\s+(norte|sul|oeste)\b/);
+  if (explicitZone?.[1]) {
+        extracted.regiao = `Zona ${explicitZone[1][0].toUpperCase()}${explicitZone[1].slice(1)}`;
+        segmentsToStrip.push(explicitZone[0]);
+  } else {
+    const regionPatterns = [
+      /(?:regiao(?: de recife)?\s*[:\-]?\s*|bairro\s*[:\-]?\s*|moro(?: nas| nos| em| na| no)?\s+|sou da\s+|sou de\s+|fico(?: nas| nos| em| na| no)?\s+)([A-Za-zÀ-ÿ0-9' -]{2,60})/i,
+    ];
+    for (const pattern of regionPatterns) {
+      const match = rawMessage.match(pattern);
+      if (match?.[1]) {
+        extracted.regiao = normalizeRegionFragment(match[1]);
+        segmentsToStrip.push(match[0]);
+        break;
+      }
+    }
+  }
+
+  const symptomPatterns = [
+    /(?:sintomas?\s*[:\-]?\s*|estou sentindo\s+|eu estou sentindo\s+|tenho sentido\s+|to sentindo\s+)(.+)$/i,
+    /(?:estou com\s+|to com\s+|sinto\s+)(.+)$/i,
+  ];
+  for (const pattern of symptomPatterns) {
+    const match = removeAccents(rawMessage).match(pattern);
+    if (match?.[1]) {
+      const candidate = cleanSymptomFragment(match[1]);
+      if (candidate && !/^\d{1,3}\s*anos?/i.test(candidate)) {
+        extracted.sintomas = candidate;
+        segmentsToStrip.push(match[0]);
+        break;
+      }
+    }
+  }
+
+  const residualMessage = buildResidualMessage(rawMessage, segmentsToStrip);
+  const compactIdentity = extractCompactIdentity(residualMessage);
+  const looseAgeAndRegion = extractLooseAgeAndRegion(residualMessage);
+
+  if (!extracted.nome && compactIdentity.nome) {
+    extracted.nome = compactIdentity.nome;
+  }
+
+  if (!extracted.idade && (compactIdentity.idade || looseAgeAndRegion.idade)) {
+    extracted.idade = compactIdentity.idade || looseAgeAndRegion.idade;
+  }
+
+  if (!extracted.regiao && (compactIdentity.regiao || looseAgeAndRegion.regiao)) {
+    extracted.regiao = compactIdentity.regiao || looseAgeAndRegion.regiao;
+  }
+
+  if (!extracted.sintomas && containsSymptomKeyword(lowerMessage)) {
+    if (residualMessage.length >= 12) {
+      extracted.sintomas = residualMessage;
+    }
+  }
+
+  return extracted;
+}
+
 @Component({
   selector: 'app-root',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, MaskitoDirective],
   templateUrl: './app.component.html',
 })
 export class AppComponent implements AfterViewInit, OnDestroy {
@@ -133,7 +408,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private readonly http = inject(HttpClient);
 
   readonly PHONE_NUMBER = '+5581981310778';
-  readonly MAX_CHAT_TURNS = MAX_CHAT_TURNS;
+  readonly whatsappMaskOptions: MaskitoOptions = {
+    mask: ({ value }) => getWhatsappMaskExpression(value),
+  };
 
   consultaForm = new FormGroup({
     nome: new FormControl('', { nonNullable: true }),
@@ -196,10 +473,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.registrarListenersDeDebug();
   }
 
-  // get mensagensRestantes(): number {
-  //   return Math.max(0, this.MAX_CHAT_TURNS - this.turnCount);
-  // }
-
   get canSendMessage(): boolean {
     return (
       !this.isLoading &&
@@ -239,11 +512,11 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     const hora = new Date().getHours();
 
     if (hora >= 5 && hora < 12) {
-      this.saudacao = 'Bom dia';
+      this.saudacao = 'Bom dia ☀️';
     } else if (hora >= 12 && hora < 18) {
-      this.saudacao = 'Boa tarde';
+      this.saudacao = 'Boa tarde 😎';
     } else {
-      this.saudacao = 'Boa noite';
+      this.saudacao = 'Boa noite 🌙';
     }
   }
 
@@ -272,7 +545,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.mensagemControl.enable({ emitEvent: false });
     this.addMessage(
       'assistant',
-      `${this.saudacao}! Que bom ter você por aqui para cuidar da sua saude.\n\nMe conta, do seu jeitinho: seu nome, sua idade, em que regiao de Recife você esta, o que esta sentindo e um WhatsApp com DDD e/ou e-mail valido para retorno.`,
+      `${this.saudacao}\nQue bom que você está aqui para cuidar da sua saúde.\n\n Conte-me, do seu jeito: seu nome, sua idade, em qual região do Recife você está, como você está se sentindo e um número de WhatsApp com DDD e/ou um endereço de e-mail válido para que eu possa entrar em contato com você.`,
       'Assistente virtual'
     );
   }
@@ -340,7 +613,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       messages: [{ role: 'user', content: latestUserMessage }],
       collectedData: this.obterDadosPaciente(),
       turnsUsed: this.turnCount,
-      maxTurns: this.MAX_CHAT_TURNS,
     };
 
     return await firstValueFrom(
@@ -888,8 +1160,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     const safetyNotice = this.getSafetyNotice(merged.sintomas);
     const hasReturnContact = hasValidReturnContact(merged);
     const shouldFinalize =
-      hasReturnContact &&
-      (this.turnCount >= this.MAX_CHAT_TURNS || missingFields.length === 0);
+      canFinalizePreAtendimento(merged);
 
     let reply = '';
 
@@ -918,129 +1189,15 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   }
 
   private extrairDadosDaMensagem(message: string): Partial<PatientProfile> {
-    const extracted: Partial<PatientProfile> = {};
-    const rawMessage = message.trim();
-    const lowerMessage = this.removeAccents(rawMessage.toLowerCase());
-    const segmentsToStrip: string[] = [];
-
-    const emailMatch = rawMessage.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
-    if (emailMatch) {
-      extracted.email = emailMatch[0].trim();
-      segmentsToStrip.push(emailMatch[0]);
-    }
-
-    const whatsappMatch = rawMessage.match(
-      /(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)\d{4,5}[-.\s]?\d{4}/
-    );
-    if (whatsappMatch && isValidWhatsapp(whatsappMatch[0])) {
-      extracted.whatsapp = formatWhatsapp(whatsappMatch[0]);
-      segmentsToStrip.push(whatsappMatch[0]);
-    }
-
-    const agePatterns = [
-      /(?:idade\s*[:\-]?\s*|tenho\s+)(\d{1,3})\s*anos?/i,
-      /\b(\d{1,3})\s*anos?\b/i,
-    ];
-    for (const pattern of agePatterns) {
-      const match = rawMessage.match(pattern);
-      if (match?.[1]) {
-        extracted.idade = match[1];
-        segmentsToStrip.push(match[0]);
-        break;
-      }
-    }
-
-    const namePatterns = [
-      /(?:meu nome e|me chamo|pode me chamar de)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' -]{1,50})/i,
-      /^(?:sou|eu sou)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' -]{1,50})(?:[,.!\n]|$)/i,
-    ];
-    for (const pattern of namePatterns) {
-      const match = this.removeAccents(rawMessage).match(pattern);
-      if (match?.[1]) {
-        const candidate = this.limparFragmento(match[1]);
-        if (candidate && !/^(da|de|do|zona)\b/i.test(candidate)) {
-          extracted.nome = candidate;
-          segmentsToStrip.push(match[0]);
-          break;
-        }
-      }
-    }
-
-    const explicitZone = lowerMessage.match(/\bzona\s+(norte|sul|oeste)\b/);
-    if (explicitZone?.[1]) {
-      extracted.regiao = `Zona ${explicitZone[1][0].toUpperCase()}${explicitZone[1].slice(1)}`;
-      segmentsToStrip.push(explicitZone[0]);
-    } else {
-      const regionPatterns = [
-        /(?:regiao(?: de recife)?\s*[:\-]?\s*|bairro\s*[:\-]?\s*|moro(?: em| na| no)?\s+|sou da\s+|sou de\s+|fico(?: em| na| no)?\s+)([A-Za-zÀ-ÿ0-9' -]{2,60})/i,
-      ];
-      for (const pattern of regionPatterns) {
-        const match = rawMessage.match(pattern);
-        if (match?.[1]) {
-          extracted.regiao = this.limparFragmento(match[1]);
-          segmentsToStrip.push(match[0]);
-          break;
-        }
-      }
-    }
-
-    const symptomPatterns = [
-      /(?:sintomas?\s*[:\-]?\s*|estou sentindo\s+|eu estou sentindo\s+|tenho sentido\s+|to sentindo\s+)(.+)$/i,
-      /(?:estou com\s+|to com\s+|sinto\s+)(.+)$/i,
-    ];
-    for (const pattern of symptomPatterns) {
-      const match = this.removeAccents(rawMessage).match(pattern);
-      if (match?.[1]) {
-        const candidate = this.limparFragmento(match[1]);
-        if (candidate && !/^\d{1,3}\s*anos?/i.test(candidate)) {
-          extracted.sintomas = candidate;
-          segmentsToStrip.push(match[0]);
-          break;
-        }
-      }
-    }
-
-    if (!extracted.sintomas && this.containsSymptomKeyword(lowerMessage)) {
-      let cleanedMessage = rawMessage;
-      for (const segment of segmentsToStrip) {
-        cleanedMessage = cleanedMessage.replace(segment, ' ');
-      }
-
-      const candidate = this.normalizeText(cleanedMessage);
-      if (candidate.length >= 12) {
-        extracted.sintomas = candidate;
-      }
-    }
-
-    return extracted;
+    return extractPatientDataFromMessage(message);
   }
 
   private limparFragmento(value: string): string {
-    return this.normalizeText(
-      value
-        .replace(/\b(e tenho|e moro|e sinto|e estou|com sintomas?.*)$/i, '')
-        .replace(/[,.!;:]+$/, '')
-    );
+    return limparFragmentoExtraido(value);
   }
 
   private containsSymptomKeyword(text: string): boolean {
-    return [
-      'dor',
-      'tontura',
-      'vertigem',
-      'zumbido',
-      'ombro',
-      'joelho',
-      'coluna',
-      'lombar',
-      'cervical',
-      'mandibula',
-      'equilibrio',
-      'fraqueza',
-      'formigamento',
-      'queda',
-      'rigidez',
-    ].some((keyword) => text.includes(keyword));
+    return containsSymptomKeyword(text);
   }
 
   private getMissingRequiredFields(
@@ -1083,16 +1240,16 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       (!!rawWhatsapp && this.consultaForm.controls.whatsapp.invalid);
 
     if (hasInvalidContact) {
-      return 'O contato que apareceu por aqui nao ficou valido. Antes de eu chamar a IA, preciso de um WhatsApp com DDD e/ou um e-mail valido para a Dra. Luiza conseguir te responder. Pode me mandar isso agora em uma mensagem so?';
+      return 'As informações de contato que apareceram aqui não são válidas. Antes de entrar em contato, preciso de um número de WhatsApp com DDD e/ou um endereço de e-mail válido para que a Dra. Luiza possa responder. Você poderia me enviar essas informações?';
     }
 
-    return 'Antes de eu chamar a IA, preciso de um WhatsApp com DDD e/ou um e-mail valido para a Dra. Luiza conseguir te responder. Assim a equipe consegue retornar seu contato sem desperdiçar a etapa do pre-atendimento.';
+    return 'Preciso de um número de WhatsApp com DDD e/ou um endereço de e-mail válido para que a Dra. Luiza possa responder. Dessa forma, a equipe poderá entrar em contato com você sem perder a etapa de pré-atendimento.';
   }
 
   private buildPendingReply(missingFields: RequiredField[]): string {
     return `Anotei tudo direitinho ate aqui. Agora me manda ${this.formatarCamposPendentes(
       missingFields
-    )} para eu fechar seu pre-atendimento. Pode mandar tudo em uma mensagem so.`;
+    )} para eu fechar seu pre-atendimento.`;
   }
 
   private buildLocalTriage(profile: PatientProfile): TriageSummary {
@@ -1182,8 +1339,8 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       cobertura: coverage,
       horarios: 'Atendimento domiciliar: seg-sex 6h-19h e sab 6h-12h.',
       observacaoFinal: safetyNotice
-        ? 'Como ha um sinal de alerta no relato, vale buscar avaliacao medica presencial com prioridade.'
-        : 'O atendimento e domiciliar em Recife, sem planos de saude, e seguimos os detalhes no WhatsApp.',
+        ? 'Considerando os sinais de alerta relatados, é aconselhável procurar uma avaliação médica presencial com prioridade.'
+        : 'Oferecemos atendimento domiciliar em Recife, sem plano de saúde, e discutiremos os detalhes via WhatsApp.',
     };
   }
 
@@ -1205,11 +1362,11 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       return '';
     }
 
-    return 'Como seu relato tem um possivel sinal de alerta, procure avaliacao medica presencial ou urgencia o quanto antes.';
+    return 'Como seu relatório contém um possível sinal de alerta, procure avaliação médica presencial ou atendimento de urgência o mais breve possível.';
   }
 
   private removeAccents(value: string): string {
-    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return removeAccents(value);
   }
 
   ngAfterViewInit() {

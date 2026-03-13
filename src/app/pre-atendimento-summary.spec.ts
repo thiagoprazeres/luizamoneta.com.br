@@ -1,6 +1,9 @@
 import {
+  canFinalizePreAtendimento,
   buildWhatsAppHandoffMessage,
+  shouldUseRichFinalReplyFallback,
   type PatientProfile,
+  type TriageSummary,
 } from './pre-atendimento-summary';
 
 describe('buildWhatsAppHandoffMessage', () => {
@@ -13,6 +16,18 @@ describe('buildWhatsAppHandoffMessage', () => {
     sintomas: 'dor no joelho ao subir escadas',
     email: 'marina@example.com',
     whatsapp: '(81) 98131-0778',
+    ...overrides,
+  });
+  const createTriage = (
+    overrides: Partial<TriageSummary> = {}
+  ): TriageSummary => ({
+    especialidadeRelacionada: 'Traumato-ortopedia',
+    hipoteseInicial: '',
+    explicacao: '',
+    abordagemProativa: '',
+    cobertura: '',
+    horarios: '',
+    observacaoFinal: '',
     ...overrides,
   });
 
@@ -67,5 +82,27 @@ describe('buildWhatsAppHandoffMessage', () => {
     );
 
     expect(withSafety).toBe(withoutSafety);
+  });
+
+  it('so permite finalizar quando todos os campos obrigatorios e um contato valido estiverem presentes', () => {
+    expect(
+      canFinalizePreAtendimento(
+        createPatient({
+          idade: '',
+          regiao: '',
+        })
+      )
+    ).toBeFalse();
+
+    expect(canFinalizePreAtendimento(createPatient())).toBeTrue();
+  });
+
+  it('faz fallback quando a resposta final vem seca demais em poucos blocos', () => {
+    const reply =
+      'Oi Thiago! Que bom te conhecer.\n\nA Dra. Luiza e especialista em traumatologia/ortopedia e vamos alinhar seu atendimento pelo WhatsApp.';
+
+    expect(
+      shouldUseRichFinalReplyFallback(reply, createTriage())
+    ).toBeTrue();
   });
 });

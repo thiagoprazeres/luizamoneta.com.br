@@ -2,6 +2,7 @@ import type { Handler } from '@netlify/functions';
 import OpenAI from 'openai';
 import {
   buildRichFinalReply,
+  canFinalizePreAtendimento,
   formatRichReplyParagraphs,
   formatWhatsapp,
   hasValidReturnContact,
@@ -59,7 +60,7 @@ Contexto fixo do atendimento:
 - Atendimento exclusivamente domiciliar em Recife
 - Horarios: seg-sex 6h-19h e sab 6h-12h
 - Areas de cobertura: Zona Oeste, Zona Norte e Zona Sul
-- Nao atende planos de saude
+- Nao atende planos de saúde
 - Filosofia: Movimento e vida
 
 Regras clinicas e de seguranca:
@@ -82,7 +83,6 @@ ${CLINIC_CONTEXT}
 
 Objetivo da conversa:
 - Conduzir um pre-atendimento online curto para preparar o agendamento
-- Trabalhar com no maximo 3 mensagens do usuario
 - Coletar nome, idade, regiao em Recife, sintomas e pelo menos um contato valido
 - O contato valido pode ser WhatsApp com DDD e/ou e-mail valido
 - Se ainda faltar dado obrigatorio, pergunte apenas o minimo necessario para fechar o pre-atendimento
@@ -104,10 +104,12 @@ Objetivo do turno final:
 Regras editoriais para "reply":
 - Escreva de 3 a 4 paragrafos curtos, sem listas
 - Comece com saudacao personalizada quando houver nome
+- Faça a abertura soar calorosa e viva, evitando resposta seca ou burocratica
 - Explique a especialidade relacionada em linguagem simples
 - Quando o relato trouxer um contexto concreto da rotina ou objetivo da pessoa, use esse gancho para um incentivo mais pessoal e menos generico
-- Se a pessoa citar algo como jogar bola, caminhar, treinar ou trabalhar sem dor, conecte a frase motivacional a isso
+- Se a pessoa citar jogar bola, correr, caminhar, treinar ou trabalhar, retome esse detalhe na resposta final e conecte a frase motivacional a isso
 - Traga um toque leve de bom humor ou carinho quando couber, sem soar infantil
+- Prefira 3 ou 4 blocos com boa cadencia; nao entregue resposta enxuta demais em 1 ou 2 blocos
 - Cite cobertura/localizacao sem inventar zonas ou bairros
 - Evite repetir informacoes institucionais que a pessoa ja viu no site, como lista completa de horarios, telefone ou descricoes longas do atendimento
 - Se mencionar disponibilidade, faca isso de forma breve e natural, sem listar todos os horarios exatos
@@ -115,7 +117,6 @@ Regras editoriais para "reply":
 - Termine com uma frase completa, sem cortar a ultima ideia no meio
 - Mantenha "reply" entre 500 e 900 caracteres, priorizando clareza e leveza
 - Feche com CTA para continuar ou agendar pelo WhatsApp
-- Use no maximo 2 emojis leves, e apenas quando nao houver sinal de alerta
 - Se houver safetyNotice, retire o humor e os emojis e priorize a orientacao de urgencia antes do CTA
 `.trim();
 }
@@ -294,7 +295,7 @@ function getSafetyNotice(symptoms: string): string {
     return '';
   }
 
-  return 'Como seu relato tem um possivel sinal de alerta, procure avaliacao medica presencial ou urgencia o quanto antes.';
+  return 'Como seu relatório contém um possível sinal de alerta, procure avaliação médica presencial ou atendimento de urgência o mais breve possível.';
 }
 
 function buildFallbackTriage(profile: PatientProfile): TriageSummary {
@@ -343,11 +344,11 @@ function buildFallbackTriage(profile: PatientProfile): TriageSummary {
   ) {
     especialidadeRelacionada = 'Neurologia';
     hipoteseInicial =
-      'O relato sugere uma demanda mais proxima de uma avaliacao neurologica funcional.';
+      'O relatório sugere a necessidade de uma avaliação neurológica mais especializada.';
     explicacao =
-      'A neurologia em fisioterapia trabalha funcionalidade, equilibrio, marcha e independencia.';
+      'A neurologia na fisioterapia concentra-se na funcionalidade, no equilíbrio, na marcha e na independência.';
     abordagemProativa =
-      'A consulta tende a priorizar seguranca, autonomia e estrategias praticas para o dia a dia.';
+      'A consulta tende a priorizar a segurança, a autonomia e estratégias práticas para a vida diária.';
   } else if (
     ['ombro', 'joelho', 'coluna', 'lombar', 'cervical', 'fratura', 'cirurgia', 'tendinite', 'lesao', 'dor'].some(
       (keyword) => symptomsText.includes(keyword)
@@ -355,11 +356,11 @@ function buildFallbackTriage(profile: PatientProfile): TriageSummary {
   ) {
     especialidadeRelacionada = 'Traumato-ortopedia';
     hipoteseInicial =
-      'A queixa combina com uma demanda musculoesqueletica ou ortopedica que pode se beneficiar de avaliacao funcional.';
+      'A queixa está relacionada a um problema musculoesquelético ou ortopédico que pode se beneficiar de uma avaliação funcional.';
     explicacao =
-      'Essa especialidade atende dores, lesoes, pos-operatorio e limitacoes de movimento com foco em recuperar funcao.';
+      'Essa especialidade trata de dor, lesões, condições pós-operatórias e limitações de movimento, com foco na restauração da função.';
     abordagemProativa =
-      'O atendimento deve mapear sobrecargas, limitacoes e padroes de movimento para orientar um plano sob medida.';
+      'A avaliação deve mapear sobrecargas, limitações e padrões de movimento para orientar um plano personalizado.';
   } else if (
     idade >= 60 ||
     ['idoso', 'envelhecimento', 'quedas', 'mobilidade'].some((keyword) =>
@@ -384,7 +385,7 @@ function buildFallbackTriage(profile: PatientProfile): TriageSummary {
     horarios: 'Atendimento domiciliar: seg-sex 6h-19h e sab 6h-12h.',
     observacaoFinal: safetyNotice
       ? 'Como ha um sinal de alerta no relato, vale buscar avaliacao medica presencial com prioridade.'
-      : 'O atendimento e domiciliar em Recife, sem planos de saude, e seguimos os detalhes no WhatsApp.',
+      : 'O atendimento e domiciliar em Recife, sem planos de saúde, e seguimos os detalhes no WhatsApp.',
   };
 }
 
@@ -398,10 +399,7 @@ function isValidPayload(payload: unknown): payload is ChatApiRequest {
     Array.isArray(candidate.messages) &&
     candidate.messages.length <= 10 &&
     typeof candidate.turnsUsed === 'number' &&
-    typeof candidate.maxTurns === 'number' &&
-    candidate.maxTurns === 3 &&
     candidate.turnsUsed >= 1 &&
-    candidate.turnsUsed <= candidate.maxTurns &&
     candidate.collectedData !== null &&
     typeof candidate.collectedData === 'object' &&
     candidate.messages.every(
@@ -463,7 +461,6 @@ function buildUserPayload(
       triageDraft: finalizeNow ? triageDraft : undefined,
       safetyNotice: finalizeNow ? safetyNotice : '',
       turnsUsed: payload.turnsUsed,
-      maxTurns: payload.maxTurns,
       instruction: finalizeNow
         ? 'Este e o turno final. Use triageDraft como fonte de verdade e escreva um fechamento humano, explicativo, convidando para o WhatsApp e puxando um gancho concreto do relato da pessoa quando houver.'
         : 'Se ainda faltar dado obrigatorio, pergunte apenas o necessario para fechar o pre-atendimento.',
@@ -578,9 +575,7 @@ export const handler: Handler = async (event) => {
   const baseHasReturnContact = hasValidReturnContact(payload.collectedData);
   const baseSafetyNotice = getSafetyNotice(payload.collectedData.sintomas);
   const baseTriage = buildFallbackTriage(payload.collectedData);
-  const finalizeNow =
-    baseHasReturnContact &&
-    (payload.turnsUsed >= payload.maxTurns || baseMissingFields.length === 0);
+  const finalizeNow = canFinalizePreAtendimento(payload.collectedData);
 
   if (!baseHasReturnContact) {
     return json(200, {
@@ -632,7 +627,7 @@ export const handler: Handler = async (event) => {
         },
       ],
       text: {
-        verbosity: finalizeNow ? 'low' : 'low',
+        verbosity: finalizeNow ? 'medium' : 'low',
         format: {
           type: 'json_schema',
           name: 'pre_atendimento',
@@ -651,9 +646,7 @@ export const handler: Handler = async (event) => {
     const triage = sanitizeTriage(buildFallbackTriage(collectedData));
     const safetyNotice =
       normalizeText(parsed.safetyNotice) || getSafetyNotice(collectedData.sintomas);
-    const shouldFinalize =
-      hasReturnContact &&
-      (payload.turnsUsed >= payload.maxTurns || missingFields.length === 0);
+    const shouldFinalize = canFinalizePreAtendimento(collectedData);
 
     let reply = normalizeText(parsed.reply);
 

@@ -31,7 +31,6 @@ export interface ChatApiRequest {
   messages: ChatApiMessage[];
   collectedData: PatientProfile;
   turnsUsed: number;
-  maxTurns: number;
 }
 
 export interface ChatApiResponse {
@@ -165,6 +164,13 @@ export function hasValidReturnContact(
   );
 }
 
+export function canFinalizePreAtendimento(profile: PatientProfile): boolean {
+  return (
+    REQUIRED_FIELDS.every((field) => !!normalizeText(profile[field])) &&
+    hasValidReturnContact(profile)
+  );
+}
+
 export function formatSummaryField(value: string): string {
   return normalizeText(value) || 'Nao informado';
 }
@@ -287,6 +293,12 @@ function buildRecoveryMotivation(patient: PatientProfile): string {
   return 'para você recuperar movimento com seguranca e voltar para a sua rotina com mais conforto';
 }
 
+function hasEnoughReplyParagraphs(reply: string): boolean {
+  return formatRichReplyParagraphs(reply)
+    .split(/\n{2,}/)
+    .filter(Boolean).length >= 3;
+}
+
 export function shouldUseRichFinalReplyFallback(
   reply: string,
   triage: TriageSummary
@@ -297,6 +309,7 @@ export function shouldUseRichFinalReplyFallback(
     normalizedReply.length < 260 ||
     normalizedReply.length > 1050 ||
     !endsWithCompleteThought(normalizedReply) ||
+    !hasEnoughReplyParagraphs(normalizedReply) ||
     !hasSpecialtyMention(normalizedReply, triage) ||
     !hasFinalReplyCta(normalizedReply)
   );
