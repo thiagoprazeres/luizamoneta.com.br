@@ -7,6 +7,7 @@ import {
   inject,
   Inject,
   NgZone,
+  OnDestroy,
   PLATFORM_ID,
 } from '@angular/core';
 import {
@@ -26,6 +27,7 @@ import {
   type ChatApiRequest,
   type ChatApiResponse,
   type ChatRole,
+  type DebugAbandonmentReason,
   type EmailSummaryMode,
   formatWhatsapp,
   hasValidReturnContact,
@@ -33,6 +35,8 @@ import {
   isValidWhatsapp,
   normalizeText as normalizeTextValue,
   type PatientProfile,
+  type PreAtendimentoDebugPayload,
+  type PreAtendimentoDebugResponse,
   type PreAtendimentoEmailPayload,
   type PreAtendimentoEmailResponse,
   REQUIRED_FIELDS,
@@ -50,10 +54,20 @@ interface ChatMessage {
   footer: string;
 }
 
+interface PreAtendimentoSessionState {
+  sessionId: string;
+  startedAt: string;
+  lastUserMessageAt: string;
+  finalizedAt: string;
+  debugEmailSentAt: string;
+  debugReason: DebugAbandonmentReason | '';
+}
+
 type EmailDispatchState = 'idle' | 'sending' | 'sent' | 'error';
 type EmailDispatchTone = 'info' | 'warning' | 'success';
 
 const MAX_CHAT_TURNS = 3;
+const DEBUG_INACTIVITY_MS = 5 * 60 * 1000;
 const FIELD_LABELS: Record<RequiredField, string> = {
   nome: 'seu nome',
   idade: 'sua idade',
@@ -114,7 +128,7 @@ function createEmptyTriageSummary(): TriageSummary {
   imports: [ReactiveFormsModule],
   templateUrl: './app.component.html',
 })
-export class AppComponent implements AfterViewInit {
+export class AppComponent implements AfterViewInit, OnDestroy {
   private readonly elementRef = inject(ElementRef);
   private readonly http = inject(HttpClient);
 
@@ -157,8 +171,21 @@ export class AppComponent implements AfterViewInit {
   userCopyEmailSent = false;
   userCopyEmailTarget = '';
   userCopyEmailAvailable = true;
+  preAtendimentoSession: PreAtendimentoSessionState = this.createSessionState();
 
   private nextMessageId = 1;
+  private debugInactivityTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly boundPageHide = () => {
+    void this.handlePageExit('tab_closed');
+  };
+  private readonly boundBeforeUnload = () => {
+    void this.handlePageExit('tab_closed');
+  };
+  private readonly boundVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') {
+      void this.handlePageExit('tab_closed');
+    }
+  };
 
   constructor(
     @Inject(PLATFORM_ID) private platformId: Object,
@@ -166,6 +193,7 @@ export class AppComponent implements AfterViewInit {
   ) {
     this.definirSaudacao();
     this.iniciarChat();
+    this.registrarListenersDeDebug();
   }
 
   // get mensagensRestantes(): number {
@@ -220,6 +248,7 @@ export class AppComponent implements AfterViewInit {
   }
 
   private iniciarChat() {
+    this.cancelDebugInactivityTimer();
     this.chatMessages = [];
     this.turnCount = 0;
     this.enviado = false;
@@ -234,6 +263,7 @@ export class AppComponent implements AfterViewInit {
     this.userCopyEmailSent = false;
     this.userCopyEmailTarget = '';
     this.userCopyEmailAvailable = true;
+    this.preAtendimentoSession = this.createSessionState();
     this.dadosUsuario = createEmptyPatientProfile();
     this.triageSummary = createEmptyTriageSummary();
     this.nextMessageId = 1;
@@ -260,9 +290,11 @@ export class AppComponent implements AfterViewInit {
     const profileAfterMerge = this.obterDadosPaciente();
 
     this.addMessage('user', mensagem, 'Você');
+    this.markUserInteraction();
     this.mensagemControl.setValue('');
 
     if (!hasValidReturnContact(profileAfterMerge)) {
+      this.scheduleDebugInactivityTimer();
       this.addMessage(
         'assistant',
         this.buildMissingContactReply(),
@@ -273,6 +305,7 @@ export class AppComponent implements AfterViewInit {
 
     this.turnCount += 1;
     this.isLoading = true;
+    this.scheduleDebugInactivityTimer();
 
     try {
       const response = this.isFallbackMode
@@ -402,10 +435,181 @@ export class AppComponent implements AfterViewInit {
     this.triageSummary = triage;
     this.safetyNotice =
       safetyNotice?.trim() || this.getSafetyNotice(patient.sintomas) || '';
+    this.preAtendimentoSession.finalizedAt = new Date().toISOString();
     this.readyForWhatsApp = true;
     this.mensagemControl.disable({ emitEvent: false });
+    this.cancelDebugInactivityTimer();
     this.scrollToLatestAssistantMessage();
     void this.enviarResumoPorEmail('finalize', patient, triage);
+  }
+
+  private createSessionState(): PreAtendimentoSessionState {
+    const now = new Date().toISOString();
+
+    return {
+      sessionId: this.generateSessionId(),
+      startedAt: now,
+      lastUserMessageAt: '',
+      finalizedAt: '',
+      debugEmailSentAt: '',
+      debugReason: '',
+    };
+  }
+
+  private generateSessionId(): string {
+    if (
+      isPlatformBrowser(this.platformId) &&
+      typeof crypto !== 'undefined' &&
+      typeof crypto.randomUUID === 'function'
+    ) {
+      return crypto.randomUUID();
+    }
+
+    return `pre-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  private markUserInteraction() {
+    this.preAtendimentoSession.lastUserMessageAt = new Date().toISOString();
+  }
+
+  private canSendDebugEmail(): boolean {
+    return (
+      !!this.preAtendimentoSession.sessionId &&
+      !!this.preAtendimentoSession.lastUserMessageAt &&
+      !this.preAtendimentoSession.finalizedAt &&
+      !this.preAtendimentoSession.debugEmailSentAt
+    );
+  }
+
+  private scheduleDebugInactivityTimer() {
+    if (!isPlatformBrowser(this.platformId) || !this.canSendDebugEmail()) {
+      return;
+    }
+
+    this.cancelDebugInactivityTimer();
+    this.debugInactivityTimer = setTimeout(() => {
+      void this.enviarDebugAbandono('inactivity');
+    }, DEBUG_INACTIVITY_MS);
+  }
+
+  private cancelDebugInactivityTimer() {
+    if (this.debugInactivityTimer) {
+      clearTimeout(this.debugInactivityTimer);
+      this.debugInactivityTimer = null;
+    }
+  }
+
+  private registrarListenersDeDebug() {
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
+
+    window.addEventListener('pagehide', this.boundPageHide);
+    window.addEventListener('beforeunload', this.boundBeforeUnload);
+    document.addEventListener('visibilitychange', this.boundVisibilityChange);
+  }
+
+  private removerListenersDeDebug() {
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
+
+    window.removeEventListener('pagehide', this.boundPageHide);
+    window.removeEventListener('beforeunload', this.boundBeforeUnload);
+    document.removeEventListener('visibilitychange', this.boundVisibilityChange);
+  }
+
+  private buildDebugPayload(
+    reason: DebugAbandonmentReason
+  ): PreAtendimentoDebugPayload {
+    const patient = this.obterDadosPaciente();
+
+    return {
+      sessionId: this.preAtendimentoSession.sessionId,
+      reason,
+      patient,
+      userMessages: this.getUserMessagesForEmail(),
+      assistantReply: this.getLatestAssistantReply() || undefined,
+      turnCount: this.turnCount,
+      isFallbackMode: this.isFallbackMode,
+      hasValidReturnContact: hasValidReturnContact(patient),
+      startedAt: this.preAtendimentoSession.startedAt,
+      lastInteractionAt:
+        this.preAtendimentoSession.lastUserMessageAt ||
+        this.preAtendimentoSession.startedAt,
+    };
+  }
+
+  private async enviarDebugAbandono(
+    reason: DebugAbandonmentReason
+  ): Promise<boolean> {
+    if (!this.canSendDebugEmail()) {
+      return false;
+    }
+
+    this.preAtendimentoSession.debugEmailSentAt = new Date().toISOString();
+    this.preAtendimentoSession.debugReason = reason;
+    this.cancelDebugInactivityTimer();
+
+    try {
+      const response = await firstValueFrom(
+        this.http.post<PreAtendimentoDebugResponse>(
+          '/.netlify/functions/debug-pre-atendimento-abandonado',
+          this.buildDebugPayload(reason)
+        )
+      );
+
+      if (response.duplicate) {
+        return true;
+      }
+
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  private sendDebugBeacon(payload: PreAtendimentoDebugPayload): boolean {
+    if (!isPlatformBrowser(this.platformId)) {
+      return false;
+    }
+
+    const body = JSON.stringify(payload);
+
+    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+      const blob = new Blob([body], {
+        type: 'application/json; charset=UTF-8',
+      });
+      return navigator.sendBeacon(
+        '/.netlify/functions/debug-pre-atendimento-abandonado',
+        blob
+      );
+    }
+
+    void fetch('/.netlify/functions/debug-pre-atendimento-abandonado', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+      },
+      body,
+      keepalive: true,
+    }).catch(() => undefined);
+
+    return true;
+  }
+
+  private async handlePageExit(
+    reason: DebugAbandonmentReason
+  ): Promise<boolean> {
+    if (!this.canSendDebugEmail()) {
+      return false;
+    }
+
+    this.preAtendimentoSession.debugEmailSentAt = new Date().toISOString();
+    this.preAtendimentoSession.debugReason = reason;
+    this.cancelDebugInactivityTimer();
+
+    return this.sendDebugBeacon(this.buildDebugPayload(reason));
   }
 
   private mergeTriageSummary(
@@ -1125,5 +1329,10 @@ export class AppComponent implements AfterViewInit {
         }
       });
     });
+  }
+
+  ngOnDestroy() {
+    this.cancelDebugInactivityTimer();
+    this.removerListenersDeDebug();
   }
 }

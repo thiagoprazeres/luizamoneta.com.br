@@ -1,6 +1,7 @@
 export type ChatRole = 'assistant' | 'user';
 export type RequiredField = 'nome' | 'idade' | 'regiao' | 'sintomas';
 export type EmailSummaryMode = 'finalize' | 'user_copy';
+export type DebugAbandonmentReason = 'inactivity' | 'tab_closed';
 
 export interface PatientProfile {
   nome: string;
@@ -57,6 +58,25 @@ export interface PreAtendimentoEmailResponse {
   message: string;
   userIncluded: boolean;
   userCopyAvailable: boolean;
+}
+
+export interface PreAtendimentoDebugPayload {
+  sessionId: string;
+  reason: DebugAbandonmentReason;
+  patient: PatientProfile;
+  userMessages: string[];
+  assistantReply?: string;
+  turnCount: number;
+  isFallbackMode: boolean;
+  hasValidReturnContact: boolean;
+  startedAt: string;
+  lastInteractionAt: string;
+}
+
+export interface PreAtendimentoDebugResponse {
+  ok: boolean;
+  duplicate: boolean;
+  message: string;
 }
 
 export const REQUIRED_FIELDS: RequiredField[] = [
