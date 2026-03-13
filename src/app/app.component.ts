@@ -204,10 +204,17 @@ function normalizeRegionFragment(value: string): string {
   return limparFragmentoExtraido(value).replace(/^(?:em|na|no|nas|nos)\s+/i, '');
 }
 
+function sanitizeSymptomPunctuation(value: string): string {
+  return normalizeTextValue(value)
+    .replace(/\s*[,;:]+\s*(?=[,;:.!?]|$)/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 function cleanSymptomFragment(value: string): string {
   return limparFragmentoExtraido(
     normalizeTextValue(
-      limparFragmentoExtraido(value).replace(
+      sanitizeSymptomPunctuation(limparFragmentoExtraido(value)).replace(
         /\b(?:meu\s+(?:e-?mail|whatsapp|zap)|e-?mail|whatsapp|zap)\b.*$/i,
         ''
       )
@@ -286,6 +293,46 @@ function extractCompactIdentity(message: string): Partial<PatientProfile> {
     idade: compactIdentity[2],
     regiao: normalizeRegionFragment(compactIdentity[3]),
   };
+}
+
+function extractCompactNameAndRegion(message: string): Partial<PatientProfile> {
+  const normalized = normalizeTextValue(message);
+  if (!normalized) {
+    return {};
+  }
+
+  const compactNameAndRegion = normalized.match(
+    /^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' -]{1,80})\s*[,;/-]\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' -]{2,80})$/i
+  );
+
+  if (!compactNameAndRegion) {
+    return {};
+  }
+
+  return {
+    nome: limparFragmentoExtraido(compactNameAndRegion[1]),
+    regiao: normalizeRegionFragment(compactNameAndRegion[2]),
+  };
+}
+
+function extractLooseName(message: string): string {
+  const candidate = limparFragmentoExtraido(message);
+  const normalized = removeAccents(candidate.toLowerCase());
+  const looksLikeRegionOnly =
+    /\brecife\b/i.test(candidate) || /^zona\s+(norte|sul|oeste)\b/i.test(candidate);
+
+  if (
+    !candidate ||
+    /\d/.test(candidate) ||
+    containsSymptomKeyword(normalized) ||
+    looksLikeRegionOnly ||
+    /^(ola|olá|oi|bom dia|boa tarde|boa noite)\b/i.test(candidate)
+  ) {
+    return '';
+  }
+
+  const words = candidate.split(/\s+/).filter(Boolean);
+  return words.length >= 2 ? candidate : '';
 }
 
 export function extractPatientDataFromMessage(
@@ -375,23 +422,41 @@ export function extractPatientDataFromMessage(
 
   const residualMessage = buildResidualMessage(rawMessage, segmentsToStrip);
   const compactIdentity = extractCompactIdentity(residualMessage);
+  const compactNameAndRegion = extractCompactNameAndRegion(residualMessage);
   const looseAgeAndRegion = extractLooseAgeAndRegion(residualMessage);
 
-  if (!extracted.nome && compactIdentity.nome) {
-    extracted.nome = compactIdentity.nome;
+  if (!extracted.nome && (compactIdentity.nome || compactNameAndRegion.nome)) {
+    extracted.nome = compactIdentity.nome || compactNameAndRegion.nome;
   }
 
   if (!extracted.idade && (compactIdentity.idade || looseAgeAndRegion.idade)) {
     extracted.idade = compactIdentity.idade || looseAgeAndRegion.idade;
   }
 
-  if (!extracted.regiao && (compactIdentity.regiao || looseAgeAndRegion.regiao)) {
-    extracted.regiao = compactIdentity.regiao || looseAgeAndRegion.regiao;
+  if (
+    !extracted.regiao &&
+    (compactIdentity.regiao ||
+      compactNameAndRegion.regiao ||
+      looseAgeAndRegion.regiao)
+  ) {
+    extracted.regiao =
+      compactIdentity.regiao ||
+      compactNameAndRegion.regiao ||
+      looseAgeAndRegion.regiao;
+  }
+
+  if (!extracted.nome && extracted.regiao) {
+    const looseName = extractLooseName(residualMessage);
+    if (looseName) {
+      extracted.nome = looseName;
+    }
   }
 
   if (!extracted.sintomas && containsSymptomKeyword(lowerMessage)) {
     if (residualMessage.length >= 12) {
-      extracted.sintomas = residualMessage;
+      extracted.sintomas = limparFragmentoExtraido(
+        sanitizeSymptomPunctuation(residualMessage)
+      );
     }
   }
 
@@ -576,6 +641,16 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    if (!canFinalizePreAtendimento(profileAfterMerge)) {
+      this.scheduleDebugInactivityTimer();
+      this.addMessage(
+        'assistant',
+        this.buildPendingReply(this.getMissingRequiredFields(profileAfterMerge)),
+        'Assistente virtual'
+      );
+      return;
+    }
+
     this.turnCount += 1;
     this.isLoading = true;
     this.scheduleDebugInactivityTimer();
@@ -591,11 +666,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       this.erroChat = errorMessage;
       if (!this.isFallbackMode) {
         this.isFallbackMode = true;
-        this.addMessage(
-          'assistant',
-          'Tive uma instabilidade rapidinha por aqui, mas sigo com você sem te deixar na mao.',
-          'Assistente virtual'
-        );
       }
 
       this.aplicarRespostaAgente(
@@ -1262,11 +1332,11 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
     let especialidadeRelacionada = 'Fisioterapia domiciliar personalizada';
     let hipoteseInicial =
-      'Pelo que você descreveu, vale uma avaliacao presencial para entender melhor a causa principal do desconforto.';
+      'Pelo que você descreveu, vale uma avaliação presencial para entender melhor a causa principal do desconforto.';
     let explicacao =
       'A consulta ajuda a conectar sintomas, rotina e funcao corporal para identificar a especialidade mais adequada.';
     let abordagemProativa =
-      'A tendencia e montar um plano individual com avaliacao de movimento, orientacoes praticas e condutas baseadas em evidencia.';
+      'A tendencia e montar um plano individual com avaliação de movimento, orientacoes praticas e condutas baseadas em evidencia.';
 
     if (
       ['tontura', 'vertigem', 'labirint', 'equilibrio', 'enjoo'].some((keyword) =>
@@ -1289,7 +1359,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       hipoteseInicial =
         'Pode haver relacao entre a musculatura, a regiao mandibular e os sintomas que você relatou.';
       explicacao =
-        'A avaliacao verifica tensoes, postura, articulacao temporomandibular e sinais que podem influenciar o zumbido ou a dor.';
+        'A avaliação verifica tensoes, postura, articulacao temporomandibular e sinais que podem influenciar o zumbido ou a dor.';
       abordagemProativa =
         'A ideia e avaliar postura, mobilidade e tensoes para direcionar um cuidado mais certeiro e personalizado.';
     } else if (
@@ -1299,7 +1369,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     ) {
       especialidadeRelacionada = 'Neurologia';
       hipoteseInicial =
-        'Os sinais contam uma historia mais proxima de uma demanda neurologica e merecem avaliacao cuidadosa.';
+        'Os sinais contam uma historia mais proxima de uma demanda neurologica e merecem avaliação cuidadosa.';
       explicacao =
         'A neurologia em fisioterapia trabalha funcionalidade, equilibrio, marcha e independencia em quadros neurologicos.';
       abordagemProativa =
@@ -1311,7 +1381,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     ) {
       especialidadeRelacionada = 'Traumato-ortopedia';
       hipoteseInicial =
-        'O relato combina com uma queixa musculoesqueletica ou ortopedica que pode se beneficiar de avaliacao funcional.';
+        'O relato combina com uma queixa musculoesqueletica ou ortopedica que pode se beneficiar de avaliação funcional.';
       explicacao =
         'Essa especialidade atende dores, lesoes, pos-operatorio e limitacoes de movimento com foco em recuperar funcao.';
       abordagemProativa =

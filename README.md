@@ -95,6 +95,17 @@ O projeto utiliza as seguintes variáveis:
 
 - `OPENAI_API_KEY`: chave da OpenAI usada pela função de pré-atendimento.
 - `OPENAI_MODEL`: modelo utilizado pela integração com OpenAI.
+- `OPENAI_IMAGE_MODEL`: modelo de imagem utilizado para gerar o avatar estatico da Luiza IA (`gpt-image-1.5` por padrão).
+- `OPENAI_IMAGE_SIZE`: tamanho do avatar estatico (`1024x1024` por padrão).
+- `OPENAI_IMAGE_QUALITY`: qualidade da imagem do avatar (`high` por padrão).
+- `OPENAI_IMAGE_OUTPUT`: caminho do avatar gerado dentro do projeto.
+- `OPENAI_IMAGE_BACKGROUND`: fundo da imagem (`opaque` por padrão).
+- `OPENAI_VIDEO_MODEL`: modelo de vídeo utilizado pelo script institucional (`sora-2` por padrão).
+- `OPENAI_VIDEO_SECONDS`: duração do vídeo institucional (`4`, `8` ou `12`; o padrão atual do script é `4`).
+- `OPENAI_VIDEO_SIZE`: resolução do vídeo (`720x1280` por padrão).
+- `OPENAI_VIDEO_OUTPUT`: caminho do MP4 gerado dentro do projeto.
+- `OPENAI_VIDEO_REFERENCE`: imagem de referência opcional para guiar a identidade visual do vídeo.
+- `OPENAI_VIDEO_CLOSING_ART`: arte final opcional usada como fechamento oficial na versão editada do vídeo.
 - `RESEND_API_KEY`: chave da API Resend para envio de e-mails.
 - `PRE_ATENDIMENTO_EMAIL_FROM`: remetente utilizado nos e-mails transacionais.
 - `PRE_ATENDIMENTO_EMAIL_TO`: destinatário principal do resumo de pré-atendimento.
@@ -128,7 +139,73 @@ npm run start:app
 npm run build
 npm run watch
 npm test
+npm run generate:image:luiza-ia-avatar:dry
+npm run generate:image:luiza-ia-avatar
+npm run generate:video:institucional:dry
+npm run generate:video:institucional
 ```
+
+## Geracao de Avatar da Luiza IA
+
+O projeto possui um script local para gerar um avatar estatico da Luiza IA usando a OpenAI Images API e salvar o arquivo final no repositório.
+
+### O que o script faz
+
+- Usa o mesmo bloco descritivo da personagem que alimenta o prompt do video institucional.
+- Gera um retrato quadrado focado em avatar de produto digital.
+- Salva a imagem final em `public/assets/generated/luiza-ia-avatar.webp`.
+- Salva um `.json` ao lado da imagem com prompt, modelo, configuracao e uso retornado pela API.
+
+### Comandos
+
+Para revisar o prompt sem consumir creditos:
+
+```bash
+npm run generate:image:luiza-ia-avatar:dry
+```
+
+Para gerar de fato o avatar:
+
+```bash
+npm run generate:image:luiza-ia-avatar
+```
+
+## Geração de Vídeo Institucional
+
+O projeto possui um script local para gerar um único vídeo institucional com Sora 2, fazer o polling da renderização e baixar o MP4 final para dentro do repositório.
+
+### O que o script faz
+
+- Usa a OpenAI Video API via SDK oficial já instalado no projeto.
+- Monta um prompt institucional alinhado ao posicionamento da Dra. Luiza Moneta.
+- Usa uma referência visual da marca compatível com a resolução escolhida, evitando assets com rostos humanos.
+- Se existir uma arte final oficial compatível com a resolução, adapta o prompt para preparar melhor a entrada dessa tela no fechamento.
+- Faz polling manual até a geração ser concluída.
+- Salva um MP4 versionado por render e atualiza o alias `public/assets/generated/luizamoneta-institucional.mp4` para a versão mais recente.
+- Salva também uma metadata versionada e atualiza o alias `public/assets/generated/luizamoneta-institucional.json`.
+- Tenta baixar também um thumbnail versionado da geração e atualizar o thumbnail `latest`, quando disponível.
+
+### Comandos
+
+Para revisar o prompt e a configuração sem consumir créditos:
+
+```bash
+npm run generate:video:institucional:dry
+```
+
+Para gerar de fato o vídeo:
+
+```bash
+npm run generate:video:institucional
+```
+
+### Observações importantes
+
+- A geração consome créditos da OpenAI e pode levar alguns minutos.
+- Com o SDK atual instalado neste projeto, a duração disponível para uma única geração é `4`, `8` ou `12` segundos.
+- Se você quiser um vídeo mais longo, o caminho recomendado é gerar múltiplos clipes e editar depois, ou iterar via remix/novas gerações.
+- A documentação atual da OpenAI restringe referências com rostos humanos na API de vídeo. Por isso o script usa a marca do projeto como referência padrão.
+- A referência visual padrão foi preparada em `720x1280` para encaixar diretamente nas gerações verticais sem erro de proporção.
 
 ## Testes
 

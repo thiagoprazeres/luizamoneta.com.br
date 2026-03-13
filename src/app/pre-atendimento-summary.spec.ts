@@ -1,6 +1,7 @@
 import {
   canFinalizePreAtendimento,
   buildWhatsAppHandoffMessage,
+  buildRichFinalReply,
   shouldUseRichFinalReplyFallback,
   type PatientProfile,
   type TriageSummary,
@@ -104,5 +105,31 @@ describe('buildWhatsAppHandoffMessage', () => {
     expect(
       shouldUseRichFinalReplyFallback(reply, createTriage())
     ).toBeTrue();
+  });
+
+  it('faz fallback quando a resposta final vem longa, mas sem o toque leve de emoji', () => {
+    const reply =
+      'Oi Nathalia!\n\nQue bom te conhecer. Pela sua queixa, a Reabilitacao Vestibular faz sentido para investigar melhor as tonturas e entender como isso conversa com a dor lombar no seu dia a dia.\n\nA ideia e observar gatilhos, equilibrio e sobrecargas para montar um plano individualizado, e depois seguimos pelo WhatsApp para combinar o atendimento domiciliar em Recife.\n\nSe quiser, a gente alinha os proximos passos por la.';
+
+    expect(
+      shouldUseRichFinalReplyFallback(
+        reply,
+        createTriage({ especialidadeRelacionada: 'Reabilitacao vestibular' })
+      )
+    ).toBeTrue();
+  });
+
+  it('limpa pontuacao sobrando dos sintomas no fechamento rico', () => {
+    const reply = buildRichFinalReply(
+      createPatient({
+        nome: 'Nathalia Augusta Alves ferreira',
+        sintomas: 'Tonturas e dor na lombar, ,',
+      }),
+      createTriage({ especialidadeRelacionada: 'Reabilitacao vestibular' })
+    );
+
+    expect(reply).toContain('Pelo que você descreveu sobre Tonturas e dor na lombar, essa queixa');
+    expect(reply).not.toContain('lombar, ,');
+    expect(reply).not.toContain('lombar, ,,');
   });
 });

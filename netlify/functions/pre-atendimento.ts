@@ -65,7 +65,7 @@ Contexto fixo do atendimento:
 
 Regras clinicas e de seguranca:
 - Nunca feche diagnostico; use hipotese inicial ou especialidade relacionada
-- Se o relato indicar sinal de alerta, avise para buscar avaliacao medica presencial ou urgencia
+- Se o relato indicar sinal de alerta, avise para buscar avaliação medica presencial ou urgencia
 - Se a regiao estiver ambigua ou fora da cobertura, diga que a confirmacao final sera feita no WhatsApp
 - Nao invente dados ausentes
 - Sua resposta DEVE ser somente um JSON valido que respeite exatamente o schema solicitado.
@@ -109,6 +109,7 @@ Regras editoriais para "reply":
 - Quando o relato trouxer um contexto concreto da rotina ou objetivo da pessoa, use esse gancho para um incentivo mais pessoal e menos generico
 - Se a pessoa citar jogar bola, correr, caminhar, treinar ou trabalhar, retome esse detalhe na resposta final e conecte a frase motivacional a isso
 - Traga um toque leve de bom humor ou carinho quando couber, sem soar infantil
+- Inclua pelo menos 1 emoji leve quando nao houver safetyNotice, para manter a personalidade calorosa da assistente
 - Prefira 3 ou 4 blocos com boa cadencia; nao entregue resposta enxuta demais em 1 ou 2 blocos
 - Cite cobertura/localizacao sem inventar zonas ou bairros
 - Evite repetir informacoes institucionais que a pessoa ja viu no site, como lista completa de horarios, telefone ou descricoes longas do atendimento
@@ -307,11 +308,11 @@ function buildFallbackTriage(profile: PatientProfile): TriageSummary {
 
   let especialidadeRelacionada = 'Fisioterapia domiciliar personalizada';
   let hipoteseInicial =
-    'Seu relato merece avaliacao presencial para entender a origem principal do desconforto.';
+    'Seu relato merece avaliação presencial para entender a origem principal do desconforto.';
   let explicacao =
     'A consulta ajuda a conectar sintomas, rotina e funcao corporal para direcionar a especialidade mais adequada.';
   let abordagemProativa =
-    'O plano tende a combinar avaliacao funcional, orientacoes praticas e condutas baseadas em evidencia.';
+    'O plano tende a combinar avaliação funcional, orientacoes praticas e condutas baseadas em evidencia.';
 
   if (
     ['tontura', 'vertigem', 'labirint', 'equilibrio', 'enjoo'].some((keyword) =>
@@ -334,7 +335,7 @@ function buildFallbackTriage(profile: PatientProfile): TriageSummary {
     hipoteseInicial =
       'Pode haver relacao entre musculatura, postura e a regiao mandibular nas queixas relatadas.';
     explicacao =
-      'A avaliacao observa tensoes, postura e sinais que podem influenciar o zumbido ou a dor.';
+      'A avaliação observa tensoes, postura e sinais que podem influenciar o zumbido ou a dor.';
     abordagemProativa =
       'A ideia e mapear tensoes e movimentos para orientar um cuidado mais certeiro e personalizado.';
   } else if (
@@ -384,7 +385,7 @@ function buildFallbackTriage(profile: PatientProfile): TriageSummary {
     cobertura: resolveCoverage(profile.regiao),
     horarios: 'Atendimento domiciliar: seg-sex 6h-19h e sab 6h-12h.',
     observacaoFinal: safetyNotice
-      ? 'Como ha um sinal de alerta no relato, vale buscar avaliacao medica presencial com prioridade.'
+      ? 'Como ha um sinal de alerta no relato, vale buscar avaliação medica presencial com prioridade.'
       : 'O atendimento e domiciliar em Recife, sem planos de saúde, e seguimos os detalhes no WhatsApp.',
   };
 }
@@ -437,6 +438,12 @@ function buildPendingReply(missingFields: RequiredField[]): string {
 
 function buildContactRequiredReply(): string {
   return 'Antes de eu fechar seu pre-atendimento, preciso de um WhatsApp com DDD e/ou um e-mail valido para a Dra. Luiza conseguir te responder.';
+}
+
+export function shouldUseOpenAiForPreAtendimento(
+  profile: PatientProfile
+): boolean {
+  return canFinalizePreAtendimento(profile);
 }
 
 function buildUserPayload(
@@ -550,7 +557,7 @@ export const handler: Handler = async (event) => {
     return json(405, { error: 'Method not allowed.' });
   }
 
-  if (!process.env.OPENAI_API_KEY) {
+  if (!process.env['OPENAI_API_KEY']) {
     return json(500, { error: 'OPENAI_API_KEY is not configured.' });
   }
 
@@ -575,7 +582,7 @@ export const handler: Handler = async (event) => {
   const baseHasReturnContact = hasValidReturnContact(payload.collectedData);
   const baseSafetyNotice = getSafetyNotice(payload.collectedData.sintomas);
   const baseTriage = buildFallbackTriage(payload.collectedData);
-  const finalizeNow = canFinalizePreAtendimento(payload.collectedData);
+  const finalizeNow = shouldUseOpenAiForPreAtendimento(payload.collectedData);
 
   if (!baseHasReturnContact) {
     return json(200, {
@@ -588,11 +595,22 @@ export const handler: Handler = async (event) => {
     } satisfies ChatApiResponse);
   }
 
+  if (!finalizeNow) {
+    return json(200, {
+      reply: buildPendingReply(baseMissingFields),
+      collectedData: payload.collectedData,
+      triage: baseTriage,
+      missingFields: baseMissingFields,
+      shouldFinalize: false,
+      safetyNotice: baseSafetyNotice,
+    } satisfies ChatApiResponse);
+  }
+
   const client = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: process.env['OPENAI_API_KEY'],
     timeout: 20_000,
   });
-  const model = process.env.OPENAI_MODEL || 'gpt-5-nano';
+  const model = process.env['OPENAI_MODEL'] || 'gpt-5-nano';
 
   try {
     const openAiResponse = await client.responses.parse({
@@ -653,7 +671,7 @@ export const handler: Handler = async (event) => {
     if (!hasReturnContact) {
       reply = buildContactRequiredReply();
     } else if (shouldFinalize) {
-      if (shouldUseRichFinalReplyFallback(reply, triage)) {
+      if (shouldUseRichFinalReplyFallback(reply, triage, safetyNotice)) {
         reply = buildRichFinalReply(collectedData, triage, safetyNotice);
       } else {
         reply = formatRichReplyParagraphs(reply);

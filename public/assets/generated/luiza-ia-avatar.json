@@ -1,0 +1,26 @@
+{
+  "generatedAt": "2026-03-13T15:28:31.059Z",
+  "project": "luizamoneta.com.br",
+  "outputPath": "public/assets/generated/luiza-ia-avatar.webp",
+  "prompt": "Crie um avatar estatico quadrado para a assistente virtual Luiza IA, usado no chat do site da Dra. Luiza Moneta. A personagem deve parecer a versao digital e acolhedora da assistente do site, e nao uma personagem generica nem um retrato corporativo frio. O avatar deve transmitir empatia, proximidade, confianca e leveza, com olhar direto para a camera e expressao amigavel. A Luiza IA e uma assistente virtual do site. Ela nao deve ser apresentada como a propria Dra. Luiza Moneta falando para a camera. Quando a Luiza IA aparecer, mostre sua presenca por interface, conversa, avatar de assistente ou elementos de produto, e nao como uma porta-voz humana em primeiro plano. Se aparecer uma fisioterapeuta em cena, ela deve remeter visualmente a Dra. Luiza Moneta e nao a uma personagem generica de banco de imagens. Descricao visual da fisioterapeuta: mulher brasileira adulta, cabelo escuro castanho quase preto, ondulado, na altura dos ombros, com reparticao lateral suave; usa oculos grandes de metal claro com desenho geometrico delicado; expressao acolhedora, sorriso caloroso, postura confiante e humana. Acessorios discretos: colar dourado curto, brincos pequenos, aparencia elegante e proxima, sem visual frio ou excessivamente formal. Figurino obrigatorio da fisioterapeuta: roupa realista de atendimento domiciliar, elegante e cotidiana, semelhante aos looks das fotos da marca. Preferir combinacoes como sobreposicao bege rosado claro com blusa creme ou off-white, ou blusa texturizada em bege e marrom claro, com calca de alfaiataria ou look casual-profissional em tons caramelo, areia, bege e creme. Evitar camisa polo, evitar uniforme corporativo, evitar jaleco, evitar scrub, evitar roupa com cara de franquia ou clinica generica. Se houver marca na roupa, usar no maximo um detalhe pequeno e discreto, como um bordado ou aplicacao sutil; nunca uma logo grande centralizada. Composicao: retrato de busto, enquadramento central, cabeca e ombros visiveis, com boa leitura mesmo em tamanho pequeno e recorte circular. Estilo: retrato semi-realista premium, iluminacao suave, acabamento limpo, elegante e acolhedor, sem parecer banco de imagens. Paleta: laranja suave, creme, bege e caramelo, alinhada a identidade visual da marca. Plano de fundo simples e limpo, preferencialmente em tom claro quente ou gradiente sutil, sem elementos distrativos e sem texto. A roupa deve seguir o mesmo estilo casual-profissional descrito acima e pode ter, no maximo, um detalhe de marca pequeno e discreto. Evitar headset, evitar microfone, evitar visual de call center, evitar exagero futurista, evitar estetica de robô, evitar mãos em destaque, evitar props desnecessarios. Resultado final deve funcionar como imagem de avatar de produto digital para a Luiza IA.",
+  "model": "gpt-image-1.5",
+  "size": "1024x1024",
+  "quality": "high",
+  "background": "opaque",
+  "outputFormat": "webp",
+  "outputCompression": 90,
+  "responseCreatedAt": "2026-03-13T15:28:30.000Z",
+  "usage": {
+    "input_tokens": 652,
+    "input_tokens_details": {
+      "image_tokens": 0,
+      "text_tokens": 652
+    },
+    "output_tokens": 4528,
+    "output_tokens_details": {
+      "image_tokens": 4160,
+      "text_tokens": 368
+    },
+    "total_tokens": 5180
+  }
+}

@@ -216,6 +216,13 @@ function normalizeForSearch(value: string): string {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+function sanitizeSymptomsForReply(value: string): string {
+  return normalizeText(value)
+    .replace(/\s*[,;:]+\s*(?=[,;:.!?]|$)/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 function getSpecialtyKeywords(especialidade: string): string[] {
   return normalizeForSearch(especialidade)
     .split(/[^a-z0-9]+/g)
@@ -299,11 +306,17 @@ function hasEnoughReplyParagraphs(reply: string): boolean {
     .filter(Boolean).length >= 3;
 }
 
+function hasEmoji(reply: string): boolean {
+  return /[\u{1F300}-\u{1FAFF}]/u.test(reply);
+}
+
 export function shouldUseRichFinalReplyFallback(
   reply: string,
-  triage: TriageSummary
+  triage: TriageSummary,
+  safetyNotice = ''
 ): boolean {
   const normalizedReply = normalizeText(reply);
+  const hasSafetyNotice = !!normalizeText(safetyNotice);
 
   return (
     normalizedReply.length < 260 ||
@@ -311,7 +324,8 @@ export function shouldUseRichFinalReplyFallback(
     !endsWithCompleteThought(normalizedReply) ||
     !hasEnoughReplyParagraphs(normalizedReply) ||
     !hasSpecialtyMention(normalizedReply, triage) ||
-    !hasFinalReplyCta(normalizedReply)
+    !hasFinalReplyCta(normalizedReply) ||
+    (!hasSafetyNotice && !hasEmoji(normalizedReply))
   );
 }
 
@@ -371,7 +385,7 @@ export function buildRichFinalReply(
   safetyNotice = ''
 ): string {
   const nome = normalizeText(patient.nome);
-  const sintomas = normalizeText(patient.sintomas);
+  const sintomas = sanitizeSymptomsForReply(patient.sintomas);
   const regiao = normalizeText(patient.regiao);
   const especialidade = formatSummaryField(triage.especialidadeRelacionada);
   const explicacao = formatSummaryField(triage.explicacao);
@@ -393,8 +407,8 @@ export function buildRichFinalReply(
     : `${saudacao} Sou a assistente da Dra. Luiza Moneta, e que bom ter você por aqui com a gente!`;
 
   const leituraClinica = sintomas
-    ? `Pelo que você descreveu sobre ${sintomas}, essa queixa conversa bastante com a area de ${especialidade}. Isso nao fecha diagnostico online, ta? Mas aponta para a especialidade mais adequada para uma avaliacao presencial bem feita.`
-    : `Pelo que você compartilhou ate aqui, a area que mais combina com o seu caso neste momento e ${especialidade}. Isso nao fecha diagnostico online, mas ajuda a direcionar a avaliacao presencial com mais precisao.`;
+    ? `Pelo que você descreveu sobre ${sintomas}, essa queixa conversa bastante com a area de ${especialidade}. Isso nao fecha diagnostico online, ta? Mas aponta para a especialidade mais adequada para uma avaliação presencial bem feita.`
+    : `Pelo que você compartilhou ate aqui, a area que mais combina com o seu caso neste momento e ${especialidade}. Isso nao fecha diagnostico online, mas ajuda a direcionar a avaliação presencial com mais precisao.`;
 
   const abordagemTexto = `${explicacao} ${abordagem}`;
 
@@ -405,7 +419,7 @@ export function buildRichFinalReply(
   const ctaSeguro =
     'Depois de ser avaliado(a) presencialmente, se fizer sentido, seguimos pelo WhatsApp para orientar o atendimento domiciliar com calma e definir o melhor encaixe.';
   const ctaPadrao =
-    'Se quiser, a gente ja pode continuar pelo WhatsApp para combinar sua avaliacao domiciliar no melhor horario para você. A ideia e deixar essa queixa mais comportada e você mais perto de retomar sua rotina com tranquilidade 😉';
+    'Se quiser, a gente ja pode continuar pelo WhatsApp para combinar sua avaliação domiciliar no melhor horario para você. A ideia e deixar essa queixa mais comportada e você mais perto de retomar sua rotina com tranquilidade 😉';
 
   if (safety) {
     return [
@@ -419,7 +433,7 @@ export function buildRichFinalReply(
   return [
     abertura,
     leituraClinica,
-    `A Dra. Luiza e craque em fazer uma avaliacao cuidadosa para entender a origem do desconforto, observar os movimentos que pioram a queixa e montar um plano individualizado ${motivacao}. ${abordagemTexto}`,
+    `A Dra. Luiza e craque em fazer uma avaliação cuidadosa para entender a origem do desconforto, observar os movimentos que pioram a queixa e montar um plano individualizado ${motivacao}. ${abordagemTexto}`,
     coberturaTexto,
     ctaPadrao,
   ].join('\n\n');
