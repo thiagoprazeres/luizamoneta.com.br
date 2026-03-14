@@ -1550,6 +1550,14 @@
                       {{ formatarCampo(dadosUsuario.sintomas) }}
                     </p>
                   </div>
+                  @if (dadosUsuario.detalhesDoCaso) {
+                    <div class="rounded-box bg-base-100 p-3 sm:col-span-2">
+                      <p class="font-semibold text-primary">Detalhes do caso</p>
+                      <p class="whitespace-pre-line">
+                        {{ formatarCampo(dadosUsuario.detalhesDoCaso) }}
+                      </p>
+                    </div>
+                  }
                 </div>
 
                 <div class="grid gap-3 text-sm sm:grid-cols-2">

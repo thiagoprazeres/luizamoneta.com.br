@@ -101,10 +101,11 @@ O projeto utiliza as seguintes variáveis:
 - `OPENAI_IMAGE_OUTPUT`: caminho do avatar gerado dentro do projeto.
 - `OPENAI_IMAGE_BACKGROUND`: fundo da imagem (`opaque` por padrão).
 - `OPENAI_VIDEO_MODEL`: modelo de vídeo utilizado pelo script institucional (`sora-2` por padrão).
+- `OPENAI_VIDEO_FOCUS`: direção do vídeo (`institucional` ou `pre-atendimento`; o padrão atual do script é `institucional`).
 - `OPENAI_VIDEO_SECONDS`: duração do vídeo institucional (`4`, `8` ou `12`; o padrão atual do script é `4`).
 - `OPENAI_VIDEO_SIZE`: resolução do vídeo (`720x1280` por padrão).
 - `OPENAI_VIDEO_OUTPUT`: caminho do MP4 gerado dentro do projeto.
-- `OPENAI_VIDEO_REFERENCE`: imagem de referência opcional para guiar a identidade visual do vídeo.
+- `OPENAI_VIDEO_REFERENCE`: imagem de referência opcional para guiar a identidade visual do vídeo. No fluxo institucional default, ela pode apontar para uma referência estética derivada da Dra. Luiza.
 - `OPENAI_VIDEO_CLOSING_ART`: arte final opcional usada como fechamento oficial na versão editada do vídeo.
 - `RESEND_API_KEY`: chave da API Resend para envio de e-mails.
 - `PRE_ATENDIMENTO_EMAIL_FROM`: remetente utilizado nos e-mails transacionais.
@@ -179,9 +180,11 @@ O projeto possui um script local para gerar um único vídeo institucional com S
 - Usa a OpenAI Video API via SDK oficial já instalado no projeto.
 - Monta um prompt institucional alinhado ao posicionamento da Dra. Luiza Moneta.
 - Usa uma referência visual da marca compatível com a resolução escolhida, evitando assets com rostos humanos.
+- No fluxo institucional default `720x1280`, usa uma referência estética derivada de `public/assets/agendamento.webp` para aproximar melhor cabelo, óculos, roupa e presença da Dra. Luiza.
 - Se existir uma arte final oficial compatível com a resolução, adapta o prompt para preparar melhor a entrada dessa tela no fechamento.
 - Faz polling manual até a geração ser concluída.
-- Salva um MP4 versionado por render e atualiza o alias `public/assets/generated/luizamoneta-institucional.mp4` para a versão mais recente.
+- Salva um MP4 base versionado por render e atualiza o alias `public/assets/generated/luizamoneta-institucional-source.mp4`.
+- Quando houver arte final oficial compatível, também monta um MP4 final versionado e atualiza o alias `public/assets/generated/luizamoneta-institucional.mp4`.
 - Salva também uma metadata versionada e atualiza o alias `public/assets/generated/luizamoneta-institucional.json`.
 - Tenta baixar também um thumbnail versionado da geração e atualizar o thumbnail `latest`, quando disponível.
 

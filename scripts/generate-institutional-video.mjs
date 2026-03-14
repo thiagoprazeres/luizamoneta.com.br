@@ -2,10 +2,14 @@
 
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import OpenAI from 'openai';
-import { buildInstitutionalVideoPrompt } from './openai-brand-prompts.mjs';
+import {
+  buildInstitutionalVideoPrompt,
+  getSupportedVideoFocuses,
+} from './openai-brand-prompts.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,6 +18,7 @@ const projectRoot = path.resolve(__dirname, '..');
 const DEFAULT_MODEL = 'sora-2';
 const DEFAULT_SECONDS = '4';
 const DEFAULT_SIZE = '720x1280';
+const DEFAULT_FOCUS = 'institucional';
 const DEFAULT_OUTPUT = 'public/assets/generated/luizamoneta-institucional.mp4';
 const DEFAULT_REFERENCES = {
   '720x1280': 'public/assets/generated/brand-reference-720x1280.png',
@@ -21,15 +26,22 @@ const DEFAULT_REFERENCES = {
   '1024x1792': 'public/assets/generated/brand-reference-1024x1792.png',
   '1792x1024': 'public/assets/generated/brand-reference-1792x1024.png',
 };
+const DEFAULT_FOCUS_REFERENCE_OVERRIDES = {
+  institucional: {
+    '720x1280': 'public/assets/generated/agendamento-reference-720x1280.png',
+  },
+};
 const DEFAULT_CLOSING_ARTS = {
   '720x1280': 'public/assets/generated/video-closing-art-720x1280.png',
   '1024x1792': 'public/assets/generated/video-closing-art-1024x1792.png',
 };
 const DEFAULT_POLL_INTERVAL_MS = 15000;
 const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
+const DEFAULT_CLOSING_ART_SECONDS = 2;
 const SUPPORTED_MODELS = ['sora-2', 'sora-2-pro'];
 const SUPPORTED_SIZES = ['720x1280', '1280x720', '1024x1792', '1792x1024'];
 const PRO_ONLY_SIZES = ['1792x1024'];
+const SUPPORTED_FOCUSES = getSupportedVideoFocuses();
 
 function loadDotEnv(filePath) {
   if (!fs.existsSync(filePath)) {
@@ -74,6 +86,7 @@ Uso:
 Opcoes:
   --dry-run              Mostra configuracao, prompt e caminhos sem chamar a API
   --model <name>         Modelo de video. Opcoes: ${SUPPORTED_MODELS.join(', ')}. Padrao: ${DEFAULT_MODEL}
+  --focus <name>         Direcao do video. Opcoes: ${SUPPORTED_FOCUSES.join(', ')}. Padrao: ${DEFAULT_FOCUS}
   --seconds <4|8|12>     Duracao do video. Padrao: ${DEFAULT_SECONDS}
   --size <WxH>           Resolucao. Padrao: ${DEFAULT_SIZE}
                          Retrato: 1024x1792
@@ -89,6 +102,7 @@ Opcoes:
 
 Variaveis opcionais:
   OPENAI_VIDEO_MODEL
+  OPENAI_VIDEO_FOCUS
   OPENAI_VIDEO_SECONDS
   OPENAI_VIDEO_SIZE
   OPENAI_VIDEO_OUTPUT
@@ -144,12 +158,22 @@ function resolveProjectPath(value, fallback) {
     : path.resolve(projectRoot, relativePath);
 }
 
-function getDefaultReferenceForSize(size) {
-  return DEFAULT_REFERENCES[size] || DEFAULT_REFERENCES[DEFAULT_SIZE];
+function getDefaultReferenceFor({ size, focus }) {
+  const focusOverrides = DEFAULT_FOCUS_REFERENCE_OVERRIDES[focus] || {};
+  return (
+    focusOverrides[size] ||
+    DEFAULT_REFERENCES[size] ||
+    DEFAULT_REFERENCES[DEFAULT_SIZE]
+  );
 }
 
 function isKnownDefaultReference(value) {
-  return Object.values(DEFAULT_REFERENCES).includes(value);
+  return [
+    ...Object.values(DEFAULT_REFERENCES),
+    ...Object.values(DEFAULT_FOCUS_REFERENCE_OVERRIDES).flatMap((entry) =>
+      Object.values(entry)
+    ),
+  ].includes(value);
 }
 
 function getDefaultClosingArtForSize(size) {
@@ -321,6 +345,122 @@ function getContentExtension(contentType) {
   return '';
 }
 
+function runProcess(command, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: projectRoot,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on('error', (error) => {
+      reject(error);
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve({ stdout, stderr });
+        return;
+      }
+
+      reject(
+        new Error(
+          `${command} falhou com codigo ${code}.\n${stderr || stdout}`.trim()
+        )
+      );
+    });
+  });
+}
+
+async function getVideoDurationSeconds(filePath) {
+  const { stdout } = await runProcess('ffprobe', [
+    '-v',
+    'error',
+    '-show_entries',
+    'format=duration',
+    '-of',
+    'default=noprint_wrappers=1:nokey=1',
+    filePath,
+  ]);
+
+  const duration = Number(stdout.trim());
+  if (!Number.isFinite(duration) || duration <= 0) {
+    throw new Error(
+      `Nao foi possivel determinar a duracao do video em ${toRelativeProjectPath(filePath)}.`
+    );
+  }
+
+  return duration;
+}
+
+async function composeVideoWithClosingArt({
+  sourceVideoPath,
+  closingArtPath,
+  outputPath,
+  size,
+  closingArtSeconds,
+}) {
+  const dimensions = parseVideoSize(size);
+  if (!dimensions) {
+    throw new Error(`Resolucao invalida para composicao final: ${size}.`);
+  }
+
+  const sourceDuration = await getVideoDurationSeconds(sourceVideoPath);
+  const artDuration = Math.min(closingArtSeconds, Math.max(sourceDuration - 0.25, 0.5));
+  const keepDuration = Math.max(sourceDuration - artDuration, 0.25);
+
+  const filter = [
+    `[0:v]scale=${dimensions.width}:${dimensions.height},fps=25,format=yuv420p,trim=duration=${keepDuration.toFixed(3)},setpts=PTS-STARTPTS[v0]`,
+    `[1:v]scale=${dimensions.width}:${dimensions.height},fps=25,format=yuv420p,trim=duration=${artDuration.toFixed(3)},setpts=PTS-STARTPTS[v1]`,
+    '[v0][v1]concat=n=2:v=1:a=0[v]',
+  ].join(';');
+
+  await runProcess('ffmpeg', [
+    '-y',
+    '-i',
+    sourceVideoPath,
+    '-loop',
+    '1',
+    '-t',
+    artDuration.toFixed(3),
+    '-i',
+    closingArtPath,
+    '-filter_complex',
+    filter,
+    '-map',
+    '[v]',
+    '-map',
+    '0:a?',
+    '-c:v',
+    'libx264',
+    '-c:a',
+    'copy',
+    '-pix_fmt',
+    'yuv420p',
+    '-movflags',
+    '+faststart',
+    '-shortest',
+    outputPath,
+  ]);
+
+  return {
+    sourceDuration,
+    keepDuration,
+    artDuration,
+    finalDuration: keepDuration + artDuration,
+  };
+}
+
 async function pollVideo(client, videoId, pollIntervalMs, timeoutMs) {
   const startedAt = Date.now();
   let lastSummary = '';
@@ -366,6 +506,7 @@ const dryRun = takeFlag(rawArgs, '--dry-run');
 const disableReference = takeFlag(rawArgs, '--no-reference');
 const disableClosingArt = takeFlag(rawArgs, '--no-closing-art');
 const model = takeOption(rawArgs, '--model') || process.env.OPENAI_VIDEO_MODEL || DEFAULT_MODEL;
+const focus = takeOption(rawArgs, '--focus') || process.env.OPENAI_VIDEO_FOCUS || DEFAULT_FOCUS;
 const seconds =
   takeOption(rawArgs, '--seconds') || process.env.OPENAI_VIDEO_SECONDS || DEFAULT_SECONDS;
 const size = takeOption(rawArgs, '--size') || process.env.OPENAI_VIDEO_SIZE || DEFAULT_SIZE;
@@ -377,7 +518,7 @@ const resolvedReferenceSetting =
   referenceOption ||
   (envReference && !isKnownDefaultReference(envReference)
     ? envReference
-    : getDefaultReferenceForSize(size));
+    : getDefaultReferenceFor({ size, focus }));
 const resolvedClosingArtSetting =
   closingArtOption ||
   (envClosingArt && !isKnownDefaultClosingArt(envClosingArt)
@@ -389,7 +530,10 @@ const outputPath = resolveProjectPath(
 );
 const referencePath = disableReference
   ? null
-  : resolveProjectPath(resolvedReferenceSetting, getDefaultReferenceForSize(size));
+  : resolveProjectPath(
+      resolvedReferenceSetting,
+      getDefaultReferenceFor({ size, focus })
+    );
 const closingArtPath = disableClosingArt || !resolvedClosingArtSetting
   ? null
   : resolveProjectPath(resolvedClosingArtSetting, getDefaultClosingArtForSize(size));
@@ -416,6 +560,10 @@ if (!SUPPORTED_MODELS.includes(model)) {
   throw new Error(`OPENAI_VIDEO_MODEL precisa ser um destes: ${SUPPORTED_MODELS.join(', ')}.`);
 }
 
+if (!SUPPORTED_FOCUSES.includes(focus)) {
+  throw new Error(`OPENAI_VIDEO_FOCUS precisa ser um destes: ${SUPPORTED_FOCUSES.join(', ')}.`);
+}
+
 if (!SUPPORTED_SIZES.includes(size)) {
   throw new Error(
     `OPENAI_VIDEO_SIZE precisa ser ${SUPPORTED_SIZES.join(', ')}.`
@@ -432,6 +580,10 @@ const outputDirectory = path.dirname(outputPath);
 const outputBaseName = path.basename(outputPath, path.extname(outputPath));
 const outputExtension = path.extname(outputPath);
 const metadataPath = path.join(outputDirectory, `${outputBaseName}.json`);
+const sourceOutputPath = path.join(
+  outputDirectory,
+  `${outputBaseName}-source${outputExtension}`
+);
 const runStartedAt = new Date();
 const versionSuffix = buildVersionSuffix({
   date: runStartedAt,
@@ -442,6 +594,10 @@ const versionSuffix = buildVersionSuffix({
 const versionedOutputPath = path.join(
   outputDirectory,
   `${outputBaseName}-${versionSuffix}${outputExtension}`
+);
+const versionedSourceOutputPath = path.join(
+  outputDirectory,
+  `${outputBaseName}-${versionSuffix}-source${outputExtension}`
 );
 const versionedMetadataPath = path.join(
   outputDirectory,
@@ -514,14 +670,18 @@ const prompt = buildInstitutionalVideoPrompt({
   seconds,
   hasReference: referenceUsable,
   hasClosingArt: closingArtUsable,
+  focus,
 });
 
 console.log(`Projeto: ${projectRoot}`);
 console.log(`Saida versionada do video: ${toRelativeProjectPath(versionedOutputPath)}`);
 console.log(`Alias latest do video: ${toRelativeProjectPath(outputPath)}`);
+console.log(`Saida versionada do video-base: ${toRelativeProjectPath(versionedSourceOutputPath)}`);
+console.log(`Alias latest do video-base: ${toRelativeProjectPath(sourceOutputPath)}`);
 console.log(`Saida versionada da metadata: ${toRelativeProjectPath(versionedMetadataPath)}`);
 console.log(`Alias latest da metadata: ${toRelativeProjectPath(metadataPath)}`);
 console.log(`Modelo: ${model}`);
+console.log(`Foco: ${focus}`);
 console.log(`Duracao: ${seconds}s`);
 console.log(`Resolucao: ${size}`);
 console.log(
@@ -593,14 +753,33 @@ if (!response.ok) {
 }
 
 const arrayBuffer = await response.arrayBuffer();
-await fsp.writeFile(versionedOutputPath, Buffer.from(arrayBuffer));
-await fsp.copyFile(versionedOutputPath, outputPath);
+await fsp.writeFile(versionedSourceOutputPath, Buffer.from(arrayBuffer));
+await fsp.copyFile(versionedSourceOutputPath, sourceOutputPath);
+
+let closingArtComposition = null;
+
+if (closingArtUsable) {
+  console.log('\nCompondo video final com a arte oficial de fechamento...');
+  closingArtComposition = await composeVideoWithClosingArt({
+    sourceVideoPath: versionedSourceOutputPath,
+    closingArtPath,
+    outputPath: versionedOutputPath,
+    size,
+    closingArtSeconds: DEFAULT_CLOSING_ART_SECONDS,
+  });
+  await fsp.copyFile(versionedOutputPath, outputPath);
+} else {
+  await fsp.copyFile(versionedSourceOutputPath, versionedOutputPath);
+  await fsp.copyFile(versionedOutputPath, outputPath);
+}
 
 const metadata = {
   generatedAt: new Date().toISOString(),
   project: 'luizamoneta.com.br',
   outputPath: toRelativeProjectPath(outputPath),
   versionedOutputPath: toRelativeProjectPath(versionedOutputPath),
+  sourceOutputPath: toRelativeProjectPath(sourceOutputPath),
+  versionedSourceOutputPath: toRelativeProjectPath(versionedSourceOutputPath),
   metadataPath: toRelativeProjectPath(metadataPath),
   versionedMetadataPath: toRelativeProjectPath(versionedMetadataPath),
   referencePath:
@@ -614,6 +793,8 @@ const metadata = {
   uploadedReferenceFileId: uploadedReferenceFile?.id ?? null,
   referenceDimensions,
   closingArtDimensions,
+  closingArtApplied: Boolean(closingArtComposition),
+  closingArtComposition,
   prompt,
   video: {
     id: completedVideo.id,
@@ -656,6 +837,8 @@ if (thumbnailResponse.ok) {
 }
 
 console.log('\nVideo gerado com sucesso.');
+console.log(`MP4 base versionado: ${toRelativeProjectPath(versionedSourceOutputPath)}`);
+console.log(`MP4 base latest: ${toRelativeProjectPath(sourceOutputPath)}`);
 console.log(`MP4 versionado: ${toRelativeProjectPath(versionedOutputPath)}`);
 console.log(`MP4 latest: ${toRelativeProjectPath(outputPath)}`);
 console.log(`Metadata versionada: ${toRelativeProjectPath(versionedMetadataPath)}`);

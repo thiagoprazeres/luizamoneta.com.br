@@ -8,6 +8,7 @@ export interface PatientProfile {
   idade: string;
   regiao: string;
   sintomas: string;
+  detalhesDoCaso: string;
   email: string;
   whatsapp: string;
 }
@@ -49,6 +50,7 @@ export interface PreAtendimentoEmailPayload {
   safetyNotice?: string;
   assistantReply?: string;
   userMessages?: string[];
+  isFallbackMode?: boolean;
 }
 
 export interface PreAtendimentoEmailResponse {
@@ -223,22 +225,76 @@ function sanitizeSymptomsForReply(value: string): string {
     .trim();
 }
 
-function getSpecialtyKeywords(especialidade: string): string[] {
-  return normalizeForSearch(especialidade)
-    .split(/[^a-z0-9]+/g)
-    .filter(
-      (keyword) =>
-        keyword.length >= 3 &&
-        !['tratamento', 'de', 'e', 'da', 'do'].includes(keyword)
-    );
-}
-
 function hasFinalReplyCta(reply: string): boolean {
   const normalized = normalizeForSearch(reply);
 
   return ['whatsapp', 'agendar', 'agenda', 'consulta', 'horario'].some(
     (keyword) => normalized.includes(keyword)
   );
+}
+
+function hasSafetyGuidance(reply: string): boolean {
+  const normalized = normalizeForSearch(reply);
+
+  return ['urgencia', 'urgente', 'avaliacao medica', 'atendimento medico'].some(
+    (keyword) => normalized.includes(keyword)
+  );
+}
+
+function hasInvalidFinalChannelCta(reply: string): boolean {
+  const normalized = normalizeForSearch(reply);
+
+  return [
+    'continuar por aqui',
+    'seguir por aqui',
+    'prefere ja falar pelo whatsapp',
+    'prefere falar pelo whatsapp',
+    'quer continuar por aqui',
+    'por aqui ou',
+    'aqui ou pelo whatsapp',
+  ].some((keyword) => normalized.includes(keyword));
+}
+
+function hasOperationalBodyDetails(reply: string): boolean {
+  const normalized = normalizeForSearch(reply);
+
+  return [
+    'seg a sex',
+    'seg-sex',
+    'segunda a sexta',
+    'sabado',
+    '6h',
+    '12h',
+    '19h',
+    'cobertura',
+    'disponibilidade',
+    'horario disponivel',
+    'horarios disponiveis',
+    'atendimento domiciliar em recife',
+    'area exata',
+    'zona sul',
+    'zona norte',
+    'zona oeste',
+    'plano de saude',
+  ].some((keyword) => normalized.includes(keyword));
+}
+
+function hasExcessClinicalJargon(reply: string): boolean {
+  const normalized = normalizeForSearch(reply);
+
+  return [
+    'musculoesquelet',
+    'avaliacao funcional',
+    'mapear for',
+    'mapear movimento',
+    'mapear limitac',
+    'limitacoes funcionais',
+    'linha de cuidado',
+    'hipotese inicial',
+    'especialidade relacionada',
+    'quadro compativel',
+    'mecanismo lesional',
+  ].some((keyword) => normalized.includes(keyword));
 }
 
 function endsWithCompleteThought(reply: string): boolean {
@@ -249,13 +305,6 @@ function endsWithCompleteThought(reply: string): boolean {
   }
 
   return /([.!?…]|[)\]"]|[\u{1F300}-\u{1FAFF}])$/u.test(normalized);
-}
-
-function hasSpecialtyMention(reply: string, triage: TriageSummary): boolean {
-  const normalized = normalizeForSearch(reply);
-  return getSpecialtyKeywords(triage.especialidadeRelacionada).some((keyword) =>
-    normalized.includes(keyword)
-  );
 }
 
 function buildRecoveryMotivation(patient: PatientProfile): string {
@@ -300,14 +349,76 @@ function buildRecoveryMotivation(patient: PatientProfile): string {
   return 'para você recuperar movimento com seguranca e voltar para a sua rotina com mais conforto';
 }
 
-function hasEnoughReplyParagraphs(reply: string): boolean {
-  return formatRichReplyParagraphs(reply)
-    .split(/\n{2,}/)
-    .filter(Boolean).length >= 3;
+function buildRecoveryContinuation(motivacao: string): string {
+  const normalized = normalizeText(motivacao).replace(/^para você\s+/i, '');
+  return normalized || 'recuperar seu movimento com mais conforto';
 }
 
-function hasEmoji(reply: string): boolean {
-  return /[\u{1F300}-\u{1FAFF}]/u.test(reply);
+function buildWarmReaction(contextoCompleto: string): string {
+  if (
+    /\b(jogar bola|futebol|pelada)\b/.test(contextoCompleto) &&
+    /\b(pancada|torceu|torci|saiu do lugar|tranco|machuquei|machucou)\b/.test(
+      contextoCompleto
+    )
+  ) {
+    return 'Poxa, que balde de agua fria no futebol.';
+  }
+
+  if (/\b(pancada|torceu|torci|queda|caiu|saiu do lugar|tranco)\b/.test(contextoCompleto)) {
+    return 'Poxa, que susto passar por isso.';
+  }
+
+  if (/\b(tontura|vertigem|zonzeira)\b/.test(contextoCompleto)) {
+    return 'Sinto muito por esse mal-estar.';
+  }
+
+  return 'Sinto muito que você esteja passando por isso.';
+}
+
+function buildSimpleClinicalRead(gancho: string, contextoCompleto: string): string {
+  if (!gancho) {
+    return 'Pelo que você contou, vale olhar isso com calma numa avaliação presencial para entender melhor de onde vem esse desconforto e como te ajudar a sair dessa com mais segurança.';
+  }
+
+  if (/\b(joelho)\b/.test(contextoCompleto) && /\b(saiu do lugar|pancada|torceu|torci|tranco)\b/.test(contextoCompleto)) {
+    return `Pelo que você descreveu sobre ${gancho}, isso merece uma avaliação cuidadosa porque o joelho pode ficar bem sensível depois de uma pancada dessas e não vale a pena empurrar a dor com a barriga.`;
+  }
+
+  if (/\b(tontura|vertigem|zonzeira)\b/.test(contextoCompleto)) {
+    return `Pelo que você descreveu sobre ${gancho}, essa sensação merece uma avaliação cuidadosa para entender o que pode estar provocando isso e te deixar mais segura nos movimentos do dia a dia.`;
+  }
+
+  if (/\b(lombar|costas)\b/.test(contextoCompleto)) {
+    return `Pelo que você descreveu sobre ${gancho}, vale olhar isso com calma para entender o que está irritando essa região e por que alguns movimentos estão pesando mais no seu corpo agora.`;
+  }
+
+  return `Pelo que você descreveu sobre ${gancho}, vale olhar isso com calma para entender melhor o que está irritando seu corpo agora e o que pode te ajudar a recuperar movimento com mais segurança.`;
+}
+
+function buildInitialCareGuidance(contextoCompleto: string): string {
+  if (/\b(joelho|tornozelo|ombro|pe|quadril)\b/.test(contextoCompleto) && /\b(pancada|torceu|torci|saiu do lugar|tranco|dor)\b/.test(contextoCompleto)) {
+    return 'Enquanto você não e avaliado, vale pegar leve nos impactos, evitar forçar o movimento que dispara a dor e usar gelo por 15 a 20 minutos se isso te aliviar.';
+  }
+
+  if (/\b(tontura|vertigem|zonzeira)\b/.test(contextoCompleto)) {
+    return 'Enquanto isso, tente levantar mais devagar, evitar movimentos bruscos e buscar apoio se a tontura apertar.';
+  }
+
+  if (/\b(lombar|costas)\b/.test(contextoCompleto)) {
+    return 'Enquanto isso, tente pegar mais leve nos movimentos que travam a lombar e respeitar um ritmo mais gentil ate a avaliação.';
+  }
+
+  if (/\b(dor)\b/.test(contextoCompleto)) {
+    return 'Enquanto isso, vale pegar um pouco mais leve no que piora a queixa e observar quais movimentos fazem seu corpo reclamar mais.';
+  }
+
+  return '';
+}
+
+function countReplyParagraphs(reply: string): number {
+  return formatRichReplyParagraphs(reply)
+    .split(/\n{2,}/)
+    .filter(Boolean).length;
 }
 
 export function shouldUseRichFinalReplyFallback(
@@ -317,15 +428,21 @@ export function shouldUseRichFinalReplyFallback(
 ): boolean {
   const normalizedReply = normalizeText(reply);
   const hasSafetyNotice = !!normalizeText(safetyNotice);
+  const formattedReply = formatRichReplyParagraphs(normalizedReply);
+  const paragraphCount = countReplyParagraphs(formattedReply);
+  void triage;
 
   return (
-    normalizedReply.length < 260 ||
-    normalizedReply.length > 1050 ||
+    normalizedReply.length < 320 ||
+    normalizedReply.length > 1400 ||
+    paragraphCount < 3 ||
+    paragraphCount > 5 ||
     !endsWithCompleteThought(normalizedReply) ||
-    !hasEnoughReplyParagraphs(normalizedReply) ||
-    !hasSpecialtyMention(normalizedReply, triage) ||
     !hasFinalReplyCta(normalizedReply) ||
-    (!hasSafetyNotice && !hasEmoji(normalizedReply))
+    hasInvalidFinalChannelCta(normalizedReply) ||
+    hasOperationalBodyDetails(formattedReply) ||
+    hasExcessClinicalJargon(formattedReply) ||
+    (hasSafetyNotice && !hasSafetyGuidance(normalizedReply))
   );
 }
 
@@ -342,11 +459,18 @@ export function formatRichReplyParagraphs(reply: string): string {
 
   const semanticMarkers = [
     'Pelo que',
+    'Quando isso',
+    'Quando a dor',
     'No seu caso',
     'A Dra.',
-    'Sobre a sua regiao',
-    'Sobre a cobertura',
+    'Enquanto isso',
+    'Enquanto voce',
+    'Enquanto você',
+    'Até ser avaliado',
+    'Ate ser avaliado',
     'Se quiser',
+    'Se fizer sentido',
+    'Me chama no WhatsApp',
     'Vamos alinhar',
     'Pode me',
     'Como seu relato',
@@ -384,15 +508,18 @@ export function buildRichFinalReply(
   triage: TriageSummary,
   safetyNotice = ''
 ): string {
+  void triage;
   const nome = normalizeText(patient.nome);
   const sintomas = sanitizeSymptomsForReply(patient.sintomas);
-  const regiao = normalizeText(patient.regiao);
-  const especialidade = formatSummaryField(triage.especialidadeRelacionada);
-  const explicacao = formatSummaryField(triage.explicacao);
-  const abordagem = formatSummaryField(triage.abordagemProativa);
-  const cobertura = formatSummaryField(triage.cobertura);
+  const detalhesDoCaso = normalizeText(patient.detalhesDoCaso);
   const safety = normalizeText(safetyNotice);
-  const motivacao = buildRecoveryMotivation(patient);
+  const gancho = extractPrimaryComplaint(detalhesDoCaso || sintomas);
+  const contextoCompleto = normalizeForSearch(`${detalhesDoCaso} ${sintomas}`);
+  const motivacao = buildRecoveryMotivation({
+    ...patient,
+    sintomas: `${detalhesDoCaso} ${sintomas}`,
+  });
+  const continuidade = buildRecoveryContinuation(motivacao);
 
   const saudacao = nome
     ? safety
@@ -404,38 +531,28 @@ export function buildRichFinalReply(
 
   const abertura = safety
     ? `${saudacao} Sou a assistente da Dra. Luiza Moneta e revisei com carinho o que você contou no pre-atendimento.`
-    : `${saudacao} Sou a assistente da Dra. Luiza Moneta, e que bom ter você por aqui com a gente!`;
+    : `${saudacao} ${buildWarmReaction(contextoCompleto)}`;
 
-  const leituraClinica = sintomas
-    ? `Pelo que você descreveu sobre ${sintomas}, essa queixa conversa bastante com a area de ${especialidade}. Isso nao fecha diagnostico online, ta? Mas aponta para a especialidade mais adequada para uma avaliação presencial bem feita.`
-    : `Pelo que você compartilhou ate aqui, a area que mais combina com o seu caso neste momento e ${especialidade}. Isso nao fecha diagnostico online, mas ajuda a direcionar a avaliação presencial com mais precisao.`;
-
-  const abordagemTexto = `${explicacao} ${abordagem}`;
-
-  const coberturaTexto = regiao
-    ? `Sobre a regiao informada (${regiao}), ${cobertura.charAt(0).toLowerCase()}${cobertura.slice(1)}`
-    : `Sobre a cobertura do atendimento: ${cobertura}`;
-
+  const leituraClinica = buildSimpleClinicalRead(gancho, contextoCompleto);
+  const plano = `A Dra. Luiza costuma começar entendendo com calma a sua história, vendo o que piora a queixa e montando um plano bem redondinho para te ajudar a ${continuidade}.`;
+  const orientacaoInicial = buildInitialCareGuidance(contextoCompleto);
   const ctaSeguro =
-    'Depois de ser avaliado(a) presencialmente, se fizer sentido, seguimos pelo WhatsApp para orientar o atendimento domiciliar com calma e definir o melhor encaixe.';
-  const ctaPadrao =
-    'Se quiser, a gente ja pode continuar pelo WhatsApp para combinar sua avaliação domiciliar no melhor horario para você. A ideia e deixar essa queixa mais comportada e você mais perto de retomar sua rotina com tranquilidade 😉';
+    'Esse cuidado vem em primeiro lugar agora. Depois de ser avaliado, se fizer sentido, seguimos pelo WhatsApp para orientar o proximo passo.';
+  const ctaPadrao = `Se fizer sentido para você, me chama no WhatsApp para a gente combinar sua avaliação com calma.`;
 
   if (safety) {
     return [
       abertura,
-      leituraClinica,
-      `${safety} Antes de pensar no atendimento domiciliar, esse cuidado vem em primeiro lugar.`,
-      `${coberturaTexto} ${ctaSeguro}`,
+      `${leituraClinica} ${safety}`,
+      ctaSeguro,
     ].join('\n\n');
   }
 
   return [
     abertura,
     leituraClinica,
-    `A Dra. Luiza e craque em fazer uma avaliação cuidadosa para entender a origem do desconforto, observar os movimentos que pioram a queixa e montar um plano individualizado ${motivacao}. ${abordagemTexto}`,
-    coberturaTexto,
-    ctaPadrao,
+    plano,
+    [orientacaoInicial, ctaPadrao].filter(Boolean).join(' '),
   ].join('\n\n');
 }
 
@@ -513,20 +630,32 @@ export function getPreAtendimentoSummarySections(
   triage: TriageSummary,
   safetyNotice = ''
 ): SummarySection[] {
+  const patientItems = [
+    { label: 'Nome', value: formatSummaryField(patient.nome) },
+    { label: 'Idade', value: formatSummaryField(patient.idade) },
+    {
+      label: 'WhatsApp',
+      value: formatSummaryField(formatWhatsapp(patient.whatsapp)),
+    },
+    { label: 'E-mail', value: formatSummaryField(patient.email) },
+    { label: 'Regiao', value: formatSummaryField(patient.regiao) },
+    { label: 'Sintomas', value: formatSummaryField(patient.sintomas) },
+  ];
+
+  if (normalizeText(patient.detalhesDoCaso)) {
+    patientItems.push({
+      label: 'Detalhes do caso',
+      value: formatSummaryField(patient.detalhesDoCaso),
+    });
+  }
+
   const sections: SummarySection[] = [
     {
       title: 'Dados do paciente',
-      items: [
-        { label: 'Nome', value: formatSummaryField(patient.nome) },
-        { label: 'Idade', value: formatSummaryField(patient.idade) },
-        { label: 'WhatsApp', value: formatSummaryField(formatWhatsapp(patient.whatsapp)) },
-        { label: 'E-mail', value: formatSummaryField(patient.email) },
-        { label: 'Regiao', value: formatSummaryField(patient.regiao) },
-        { label: 'Sintomas', value: formatSummaryField(patient.sintomas) },
-      ],
+      items: patientItems,
     },
     {
-      title: 'Pre-atendimento virtual',
+      title: 'Pré-atendimento virtual',
       items: [
         {
           label: 'Especialidade relacionada',

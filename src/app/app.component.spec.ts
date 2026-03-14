@@ -23,6 +23,7 @@ describe('AppComponent', () => {
       idade: '62',
       regiao: 'Zona Norte do Recife',
       sintomas: 'tontura ha 3 semanas ao caminhar',
+      detalhesDoCaso: '',
       email: 'marina@example.com',
       whatsapp: '(81) 98131-0778',
     };
@@ -61,6 +62,7 @@ describe('AppComponent', () => {
       idade: '62',
       regiao: 'Zona Norte do Recife',
       sintomas: 'tontura ha 3 semanas ao caminhar',
+      detalhesDoCaso: '',
       email: 'marina@example.com',
       whatsapp: '(81) 98131-0778',
     };
@@ -213,12 +215,29 @@ describe('AppComponent', () => {
     });
   });
 
+  it('guarda o mecanismo da lesao em detalhes do caso sem poluir sintomas', () => {
+    expect(
+      extractPatientDataFromMessage(
+        'Boa noite. Me chamo Chesque, tenho 41 anos e moro na zona sul de Recife. Estava jogando futebol e recebi um pancada na perna direita onde senti o joelho saindo do lugar. Hoje Sinto dores no joelho direito ao agachar ou subir escada ou correr. 81999950663'
+      )
+    ).toEqual({
+      nome: 'Chesque',
+      idade: '41',
+      regiao: 'Zona Sul',
+      sintomas: 'dores no joelho direito ao agachar ou subir escada ou correr',
+      detalhesDoCaso:
+        'Estava jogando futebol e recebi um pancada na perna direita onde senti o joelho saindo do lugar',
+      whatsapp: '(81) 99995-0663',
+    });
+  });
+
   it('apos duas mensagens compactas, deixa apenas a idade pendente', () => {
     const patient: PatientProfile = {
       nome: '',
       idade: '',
       regiao: '',
       sintomas: 'Tonturas e dor na lombar',
+      detalhesDoCaso: '',
       email: 'nathaliaoftalmozs@gmail.com',
       whatsapp: '(81) 99654-1067',
     };
@@ -266,6 +285,7 @@ describe('AppComponent', () => {
       idade: '36',
       regiao: 'Zona Sul',
       sintomas: 'Tonturas e dor na lombar',
+      detalhesDoCaso: '',
       email: 'nathaliaoftalmozs@gmail.com',
       whatsapp: '(81) 99654-1067',
     };
@@ -339,6 +359,7 @@ describe('AppComponent', () => {
       idade: '',
       regiao: '',
       sintomas: '',
+      detalhesDoCaso: '',
       email: '',
       whatsapp: '',
     };
@@ -394,6 +415,7 @@ describe('AppComponent', () => {
       idade: '',
       regiao: '',
       sintomas: '',
+      detalhesDoCaso: '',
       email: '',
       whatsapp: '',
     };
@@ -408,6 +430,7 @@ describe('AppComponent', () => {
             idade: '36',
             regiao: 'Zona Sul',
             sintomas: 'Tonturas e dor na lombar',
+            detalhesDoCaso: '',
             email: 'nathaliaoftalmozs@gmail.com',
             whatsapp: '(81) 99654-1067',
           },
@@ -534,6 +557,7 @@ describe('AppComponent', () => {
       idade: '62',
       regiao: 'Zona Norte do Recife',
       sintomas: 'tontura ha 3 semanas ao caminhar',
+      detalhesDoCaso: '',
       email: 'marina@example.com',
       whatsapp: '(81) 98131-0778',
     };
@@ -621,6 +645,7 @@ describe('AppComponent', () => {
           idade: '',
           regiao: '',
           sintomas: '',
+          detalhesDoCaso: '',
           email: '',
           whatsapp: '',
         },
@@ -650,6 +675,7 @@ describe('AppComponent', () => {
       idade: '62',
       regiao: 'Zona Norte do Recife',
       sintomas: 'tontura ha 3 semanas ao caminhar',
+      detalhesDoCaso: '',
       email: 'marina@example.com',
       whatsapp: '(81) 98131-0778',
     };

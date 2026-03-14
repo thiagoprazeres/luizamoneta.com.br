@@ -10,7 +10,6 @@ import {
   isValidEmail,
   isValidWhatsapp,
   normalizeText,
-  shouldUseRichFinalReplyFallback,
   type EmailSummaryMode,
   type PatientProfile,
   type PreAtendimentoEmailPayload,
@@ -37,6 +36,7 @@ function createEmptyPatientProfile(): PatientProfile {
     idade: '',
     regiao: '',
     sintomas: '',
+    detalhesDoCaso: '',
     email: '',
     whatsapp: '',
   };
@@ -68,6 +68,7 @@ function sanitizePatient(value: unknown): PatientProfile {
     idade: normalizeText(source.idade),
     regiao: normalizeText(source.regiao),
     sintomas: normalizeText(source.sintomas),
+    detalhesDoCaso: normalizeText(source.detalhesDoCaso),
     email: isValidEmail(email) ? email : '',
     whatsapp: isValidWhatsapp(whatsapp) ? formatWhatsapp(whatsapp) : '',
   };
@@ -176,18 +177,39 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
-function buildAssistantReplyForEmail(
+export function buildAssistantReplyForEmail(
   assistantReply: string,
   patient: PatientProfile,
   triage: TriageSummary,
   safetyNotice: string
 ): string {
   const reply = formatRichReplyParagraphs(assistantReply);
-  if (reply && !shouldUseRichFinalReplyFallback(reply, triage)) {
+  if (reply) {
     return reply;
   }
 
   return buildRichFinalReply(patient, triage, safetyNotice);
+}
+
+export function buildAiStatusLabel(isFallbackMode = false): string {
+  return isFallbackMode ? 'Modo assistido/local' : 'IA ativa (OpenAI)';
+}
+
+function buildAiStatusText(isFallbackMode = false): string {
+  return `Status da IA: ${buildAiStatusLabel(isFallbackMode)}`;
+}
+
+function buildAiStatusHtml(isFallbackMode = false): string {
+  const tone = isFallbackMode ? '#92400e' : '#166534';
+  const background = isFallbackMode ? '#fef3c7' : '#dcfce7';
+
+  return `
+    <section style="margin: 0 0 24px;">
+      <p style="margin: 0; display: inline-block; padding: 8px 12px; border-radius: 999px; background: ${background}; color: ${tone}; font-weight: 600;">
+        Status da IA: ${escapeHtml(buildAiStatusLabel(isFallbackMode))}
+      </p>
+    </section>
+  `.trim();
 }
 
 function buildAssistantReplyHtml(reply: string): string {
@@ -295,6 +317,7 @@ export const handler: Handler = async (event) => {
   const triage = sanitizeTriage(payload.triage);
   const safetyNotice = normalizeText(payload.safetyNotice);
   const userMessages = sanitizeUserMessages(payload.userMessages);
+  const isFallbackMode = payload.isFallbackMode === true;
   const assistantReply = buildAssistantReplyForEmail(
     typeof payload.assistantReply === 'string' ? payload.assistantReply : '',
     patient,
@@ -335,6 +358,7 @@ export const handler: Handler = async (event) => {
   const userIncluded =
     payload.mode === 'finalize' && isValidEmail(patient.email) && userCopyAvailable;
   const textParts = [
+    buildAiStatusText(isFallbackMode),
     assistantReply,
     buildUserMessagesText(userMessages),
     buildPreAtendimentoTextSummary(patient, triage, safetyNotice),
@@ -342,6 +366,7 @@ export const handler: Handler = async (event) => {
   const text = textParts.join('\n\n');
   const html = `
     <div style="font-family: Arial, sans-serif; color: #1f2937;">
+      ${buildAiStatusHtml(isFallbackMode)}
       ${buildAssistantReplyHtml(assistantReply)}
       ${buildUserMessagesHtml(userMessages)}
       ${buildPreAtendimentoHtmlSummary(patient, triage, safetyNotice)}

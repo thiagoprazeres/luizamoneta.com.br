@@ -35,6 +35,7 @@ function createEmptyPatientProfile(): PatientProfile {
     idade: '',
     regiao: '',
     sintomas: '',
+    detalhesDoCaso: '',
     email: '',
     whatsapp: '',
   };
@@ -79,6 +80,7 @@ function sanitizePatient(value: unknown): PatientProfile {
     idade: normalizeText(source.idade),
     regiao: normalizeText(source.regiao),
     sintomas: normalizeText(source.sintomas),
+    detalhesDoCaso: normalizeText(source.detalhesDoCaso),
     email: isValidEmail(email) ? email : '',
     whatsapp: isValidWhatsapp(whatsapp) ? formatWhatsapp(whatsapp) : '',
   };

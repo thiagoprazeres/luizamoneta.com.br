@@ -15,6 +15,7 @@ describe('debug-pre-atendimento-abandonado backend rules', () => {
     idade: '56',
     regiao: 'Casa Amarela',
     sintomas: 'dor no joelho ao correr',
+    detalhesDoCaso: '',
     email: 'andre@example.com',
     whatsapp: '(81) 99999-0000',
   };

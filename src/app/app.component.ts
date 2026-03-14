@@ -171,6 +171,7 @@ function createEmptyPatientProfile(): PatientProfile {
     idade: '',
     regiao: '',
     sintomas: '',
+    detalhesDoCaso: '',
     email: '',
     whatsapp: '',
   };
@@ -190,6 +191,24 @@ function createEmptyTriageSummary(): TriageSummary {
 
 function removeAccents(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function findAccentInsensitiveMatch(
+  rawMessage: string,
+  pattern: RegExp
+): { match: RegExpExecArray; rawSegment: string } | null {
+  const normalizedPattern = new RegExp(pattern.source, pattern.flags);
+  const normalizedMessage = removeAccents(rawMessage);
+  const match = normalizedPattern.exec(normalizedMessage);
+
+  if (match?.index === undefined) {
+    return null;
+  }
+
+  return {
+    match,
+    rawSegment: rawMessage.slice(match.index, match.index + match[0].length),
+  };
 }
 
 function limparFragmentoExtraido(value: string): string {
@@ -222,6 +241,37 @@ function stripTrailingContactInfo(value: string): string {
       /\s*[,;:-]?\s*(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)\d{4,5}[-.\s]?\d{4}.*$/i,
       ''
     );
+}
+
+function cleanCaseDetailsFragment(value: string): string {
+  return normalizeTextValue(
+    stripTrailingContactInfo(
+      sanitizeSymptomPunctuation(value)
+        .replace(/^(?:ola|olá|oi|boa noite|bom dia|boa tarde)[,.!\s]*/i, '')
+        .replace(/^(?:[A-Za-zÀ-ÿ]{2,30},\s*)+/i, '')
+        .replace(/^[,.!\s]*(?:e\s+)?(?:me chamo|meu nome e|sou|eu sou)\b[^.?!]*[.?!]?\s*/i, '')
+        .replace(/^[,.!\s]*(?:e\s+)?(?:moro|fico|sou de|sou da)\b[^.?!]*[.?!]?\s*/i, '')
+        .replace(/^[,.!\s]*(?:e\s+)?(?:tenho\s+)?\d{1,3}\s*anos?\b[,.!\s]*/i, '')
+        .replace(/[.?!]\s*(?:hoje\s+|agora\s+|atualmente\s+)?(?:estou sentindo|eu estou sentindo|tenho sentido|to sentindo|estou com|to com|sinto)\b.*$/i, '')
+        .replace(/^(?:estou sentindo|eu estou sentindo|tenho sentido|to sentindo|estou com|to com|sinto)\b.*$/i, '')
+        .replace(/^(?:e\s+)+/i, '')
+        .replace(/\b(?:hoje|agora|atualmente)\b[,.!\s]*$/i, '')
+        .replace(/^[,.;:\s-]+/g, '')
+        .replace(/[,.!;:]+$/, '')
+    )
+  );
+}
+
+function shouldKeepCaseDetails(value: string): boolean {
+  const normalized = normalizeTextValue(value);
+
+  if (!normalized || normalized.length < 15) {
+    return false;
+  }
+
+  return !/^(?:meu nome|me chamo|estou sentindo|eu estou sentindo|tenho sentido|to sentindo|estou com|to com|sinto)\b/i.test(
+    normalized
+  );
 }
 
 function cleanSymptomFragment(value: string): string {
@@ -408,12 +458,12 @@ export function extractPatientDataFromMessage(
     /^(?:sou|eu sou)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' -]{1,50})(?:[,.!\n]|$)/i,
   ];
   for (const pattern of namePatterns) {
-    const match = removeAccents(rawMessage).match(pattern);
-    if (match?.[1]) {
-      const candidate = limparFragmentoExtraido(match[1]);
+    const found = findAccentInsensitiveMatch(rawMessage, pattern);
+    if (found?.match[1]) {
+      const candidate = limparFragmentoExtraido(found.match[1]);
       if (candidate && !/^(da|de|do|zona)\b/i.test(candidate)) {
         extracted.nome = candidate;
-        segmentsToStrip.push(match[0]);
+        segmentsToStrip.push(found.rawSegment);
         break;
       }
     }
@@ -442,12 +492,12 @@ export function extractPatientDataFromMessage(
     /(?:estou com\s+|to com\s+|sinto\s+)(.+)$/i,
   ];
   for (const pattern of symptomPatterns) {
-    const match = removeAccents(rawMessage).match(pattern);
-    if (match?.[1]) {
-      const candidate = cleanSymptomFragment(match[1]);
+    const found = findAccentInsensitiveMatch(rawMessage, pattern);
+    if (found?.match[1]) {
+      const candidate = cleanSymptomFragment(found.match[1]);
       if (candidate && !/^\d{1,3}\s*anos?/i.test(candidate)) {
         extracted.sintomas = candidate;
-        segmentsToStrip.push(match[0]);
+        segmentsToStrip.push(found.rawSegment);
         break;
       }
     }
@@ -504,6 +554,19 @@ export function extractPatientDataFromMessage(
     }
   }
 
+  const detalhesDoCaso = cleanCaseDetailsFragment(
+    buildResidualMessage(residualMessage, [
+      extracted.nome,
+      extracted.idade,
+      extracted.regiao,
+      extracted.sintomas,
+    ].filter(Boolean) as string[])
+  );
+
+  if (shouldKeepCaseDetails(detalhesDoCaso)) {
+    extracted.detalhesDoCaso = detalhesDoCaso;
+  }
+
   return extracted;
 }
 
@@ -526,6 +589,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     idade: new FormControl('', { nonNullable: true }),
     regiao: new FormControl('', { nonNullable: true }),
     sintomas: new FormControl('', { nonNullable: true }),
+    detalhesDoCaso: new FormControl('', { nonNullable: true }),
     whatsapp: new FormControl('', {
       nonNullable: true,
       validators: [whatsappValidator],
@@ -724,7 +788,10 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     latestUserMessage: string
   ): Promise<ChatApiResponse> {
     const payload: ChatApiRequest = {
-      messages: [{ role: 'user', content: latestUserMessage }],
+      messages: this.chatMessages.map((message) => ({
+        role: message.role,
+        content: message.content,
+      })),
       collectedData: this.obterDadosPaciente(),
       turnsUsed: this.turnCount,
     };
@@ -785,6 +852,8 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       idade: this.normalizeText(data.idade) || current.idade,
       regiao: this.normalizeText(data.regiao) || current.regiao,
       sintomas: this.normalizeText(data.sintomas) || current.sintomas,
+      detalhesDoCaso:
+        this.normalizeText(data.detalhesDoCaso) || current.detalhesDoCaso,
       email: current.email,
       whatsapp: current.whatsapp,
     };
@@ -1083,6 +1152,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       idade: this.normalizeText(rawValue.idade),
       regiao: this.normalizeText(rawValue.regiao),
       sintomas: this.normalizeText(rawValue.sintomas),
+      detalhesDoCaso: this.normalizeText(rawValue.detalhesDoCaso),
       email: this.normalizeText(rawValue.email),
       whatsapp: this.normalizeText(rawValue.whatsapp),
     };
@@ -1179,6 +1249,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       safetyNotice: this.safetyNotice || undefined,
       assistantReply: this.getLatestAssistantReply() || undefined,
       userMessages: this.getUserMessagesForEmail(),
+      isFallbackMode: this.isFallbackMode,
     };
 
     try {
@@ -1259,6 +1330,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       idade: extracted.idade || current.idade,
       regiao: extracted.regiao || current.regiao,
       sintomas: extracted.sintomas || current.sintomas,
+      detalhesDoCaso: extracted.detalhesDoCaso || current.detalhesDoCaso,
       email:
         extracted.email && this.isValidEmail(extracted.email)
           ? extracted.email
@@ -1368,7 +1440,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
   private buildLocalTriage(profile: PatientProfile): TriageSummary {
     const symptomsText = this.removeAccents(
-      `${profile.sintomas} ${profile.regiao}`.toLowerCase()
+      `${profile.detalhesDoCaso} ${profile.sintomas} ${profile.regiao}`.toLowerCase()
     );
     const idade = Number(profile.idade);
     const coverage = this.resolveCoverage(profile.regiao);

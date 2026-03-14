@@ -2,7 +2,7 @@ import {
   canFinalizePreAtendimento,
   buildWhatsAppHandoffMessage,
   buildRichFinalReply,
-  shouldUseRichFinalReplyFallback,
+  getPreAtendimentoSummarySections,
   type PatientProfile,
   type TriageSummary,
 } from './pre-atendimento-summary';
@@ -15,6 +15,7 @@ describe('buildWhatsAppHandoffMessage', () => {
     idade: '62',
     regiao: 'Zona Norte do Recife',
     sintomas: 'dor no joelho ao subir escadas',
+    detalhesDoCaso: '',
     email: 'marina@example.com',
     whatsapp: '(81) 98131-0778',
     ...overrides,
@@ -98,27 +99,6 @@ describe('buildWhatsAppHandoffMessage', () => {
     expect(canFinalizePreAtendimento(createPatient())).toBeTrue();
   });
 
-  it('faz fallback quando a resposta final vem seca demais em poucos blocos', () => {
-    const reply =
-      'Oi Thiago! Que bom te conhecer.\n\nA Dra. Luiza e especialista em traumatologia/ortopedia e vamos alinhar seu atendimento pelo WhatsApp.';
-
-    expect(
-      shouldUseRichFinalReplyFallback(reply, createTriage())
-    ).toBeTrue();
-  });
-
-  it('faz fallback quando a resposta final vem longa, mas sem o toque leve de emoji', () => {
-    const reply =
-      'Oi Nathalia!\n\nQue bom te conhecer. Pela sua queixa, a Reabilitacao Vestibular faz sentido para investigar melhor as tonturas e entender como isso conversa com a dor lombar no seu dia a dia.\n\nA ideia e observar gatilhos, equilibrio e sobrecargas para montar um plano individualizado, e depois seguimos pelo WhatsApp para combinar o atendimento domiciliar em Recife.\n\nSe quiser, a gente alinha os proximos passos por la.';
-
-    expect(
-      shouldUseRichFinalReplyFallback(
-        reply,
-        createTriage({ especialidadeRelacionada: 'Reabilitacao vestibular' })
-      )
-    ).toBeTrue();
-  });
-
   it('limpa pontuacao sobrando dos sintomas no fechamento rico', () => {
     const reply = buildRichFinalReply(
       createPatient({
@@ -128,8 +108,42 @@ describe('buildWhatsAppHandoffMessage', () => {
       createTriage({ especialidadeRelacionada: 'Reabilitacao vestibular' })
     );
 
-    expect(reply).toContain('Pelo que você descreveu sobre Tonturas e dor na lombar, essa queixa');
+    expect(reply).toContain('Pelo que você descreveu sobre Tonturas e dor na lombar');
     expect(reply).not.toContain('lombar, ,');
     expect(reply).not.toContain('lombar, ,,');
+  });
+
+  it('usa o gancho da lesao esportiva no fallback local sem puxar horario ou cobertura', () => {
+    const reply = buildRichFinalReply(
+      createPatient({
+        nome: 'Chesque',
+        regiao: 'Zona Sul',
+        sintomas: 'dor no joelho ao agachar, subir escada e correr',
+        detalhesDoCaso:
+          'Estava jogando futebol e senti o joelho saindo do lugar depois de uma pancada.',
+      }),
+      createTriage({ especialidadeRelacionada: 'Traumato-ortopedia' })
+    );
+
+    expect(reply).toContain('futebol');
+    expect(reply).toContain('joelho');
+    expect(reply).toContain('WhatsApp');
+    expect(reply).not.toContain('Seg a Sex');
+    expect(reply).not.toContain('Zona Sul');
+    expect(reply).not.toContain('avaliação funcional');
+  });
+
+  it('inclui detalhes do caso no resumo apenas quando houver conteudo', () => {
+    const withDetails = getPreAtendimentoSummarySections(
+      createPatient({ detalhesDoCaso: 'Torci o joelho na pelada de domingo.' }),
+      createTriage()
+    );
+    const withoutDetails = getPreAtendimentoSummarySections(
+      createPatient(),
+      createTriage()
+    );
+
+    expect(withDetails[0].items.some((item) => item.label === 'Detalhes do caso')).toBeTrue();
+    expect(withoutDetails[0].items.some((item) => item.label === 'Detalhes do caso')).toBeFalse();
   });
 });
