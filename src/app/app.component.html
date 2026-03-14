@@ -1729,6 +1729,7 @@
               </label> -->
               <textarea
                 [formControl]="mensagemControl"
+                (input)="sincronizarMensagemDoCampo($event)"
                 class="textarea textarea-primary min-h-28 w-full bg-white/75 text-neutral"
                 placeholder="Ex.: Meu nome é Marina, tenho 62 anos, moro na Zona Norte do Recife, estou com tontura há 3 semanas e meu WhatsApp é (81) 98131-0778..."
                 autocomplete="off"
@@ -1740,7 +1741,7 @@
                   Ao continuar, seus dados serão usados no pré-atendimento
                   online e na continuação pelo WhatsApp. Para acionar a IA,
                   informe em alguma mensagem um WhatsApp com DDD e/ou e-mail
-                  válido. v1
+                  válido. v2
                 </p>
                 <button
                   type="submit"

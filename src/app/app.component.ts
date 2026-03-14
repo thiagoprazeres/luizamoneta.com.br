@@ -631,6 +631,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private readonly boundBeforeUnload = () => {
     void this.handlePageExit('tab_closed');
   };
+  private readonly boundPageShow = () => {
+    this.syncMessageControlFromTextarea();
+  };
   private readonly boundVisibilityChange = () => {
     if (document.visibilityState === 'hidden') {
       void this.handlePageExit('tab_closed');
@@ -650,7 +653,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     return (
       !this.isLoading &&
       !this.readyForWhatsApp &&
-      !!this.mensagemControl.value.trim()
+      !!this.normalizeText(this.mensagemControl.getRawValue())
     );
   }
 
@@ -959,6 +962,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    window.addEventListener('pageshow', this.boundPageShow);
     window.addEventListener('pagehide', this.boundPageHide);
     window.addEventListener('beforeunload', this.boundBeforeUnload);
     document.addEventListener('visibilitychange', this.boundVisibilityChange);
@@ -969,9 +973,41 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    window.removeEventListener('pageshow', this.boundPageShow);
     window.removeEventListener('pagehide', this.boundPageHide);
     window.removeEventListener('beforeunload', this.boundBeforeUnload);
     document.removeEventListener('visibilitychange', this.boundVisibilityChange);
+  }
+
+  sincronizarMensagemDoCampo(event: Event) {
+    const target = event.target;
+    const value =
+      target && typeof target === 'object' && 'value' in target
+        ? String(target.value ?? '')
+        : '';
+
+    if (value !== this.mensagemControl.getRawValue()) {
+      this.mensagemControl.setValue(value);
+    }
+  }
+
+  private syncMessageControlFromTextarea() {
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
+
+    const textarea = this.elementRef.nativeElement.querySelector(
+      'textarea'
+    ) as HTMLTextAreaElement | null;
+
+    if (!textarea) {
+      return;
+    }
+
+    const rawValue = textarea.value ?? '';
+    if (rawValue && rawValue !== this.mensagemControl.getRawValue()) {
+      this.mensagemControl.setValue(rawValue);
+    }
   }
 
   private buildDebugPayload(
@@ -1559,6 +1595,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     if (!isPlatformBrowser(this.platformId)) {
       return;
     }
+
+    this.syncMessageControlFromTextarea();
+
     this.ngZone.runOutsideAngular(() => {
       const select = (selector: string) =>
         this.elementRef.nativeElement.querySelector(selector);

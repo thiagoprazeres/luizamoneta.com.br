@@ -172,6 +172,38 @@ describe('AppComponent', () => {
     ]);
   });
 
+  it('sincroniza o valor visivel do textarea com o FormControl ao digitar', () => {
+    const setValue = jasmine.createSpy('setValue');
+    const componentLike = {
+      mensagemControl: {
+        getRawValue: () => '',
+        setValue,
+      },
+    } as unknown as AppComponent;
+
+    AppComponent.prototype.sincronizarMensagemDoCampo.call(componentLike, {
+      target: { value: 'Olá, preciso de ajuda' },
+    } as unknown as Event);
+
+    expect(setValue).toHaveBeenCalledOnceWith('Olá, preciso de ajuda');
+  });
+
+  it('nao tenta sincronizar de novo quando o textarea ja bate com o FormControl', () => {
+    const setValue = jasmine.createSpy('setValue');
+    const componentLike = {
+      mensagemControl: {
+        getRawValue: () => 'Olá, preciso de ajuda',
+        setValue,
+      },
+    } as unknown as AppComponent;
+
+    AppComponent.prototype.sincronizarMensagemDoCampo.call(componentLike, {
+      target: { value: 'Olá, preciso de ajuda' },
+    } as unknown as Event);
+
+    expect(setValue).not.toHaveBeenCalled();
+  });
+
   it('limpa a regiao e impede que sintomas carreguem contato junto', () => {
     expect(
       extractPatientDataFromMessage(
